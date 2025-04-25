@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=42.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "USP"
+version = "0.1.0"
+description = "Analysis tools for E. coli fermentation data"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib==3.9.0",
+    "seaborn",
+    "scipy",
+    "pytest",
+    "openpyxl", # For reading .xlsx offline files
+    "PyYAML", # Added for config loading
+
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.5",
+    "pytest-cov>=2.12.1",
+    "black>=21.5b2",
+    "isort>=5.9.1",
+    "flake8>=3.9.2",
+]
