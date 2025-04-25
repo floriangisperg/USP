@@ -1,0 +1,56 @@
+# examples/real_data_example/run_config.yaml
+# --- Experiment-specific overrides and metadata ---
+
+metadata:
+  general:
+    fermentation_id: 'CDL_scFv_His_DoE_Run?' # Example ID
+    date_start: '2022-02-14' # Use ISO format preferably
+    strain: 'E. coli BL21DE3 (pET)' # Example
+    reactor: 'MF2 R?' # Example
+    media_base: 'DeLisa Glucose' # Example
+    induction_summary: '1mM IPTG, qs=0.4, T=30°C, 8h' # Example text summary
+  # Overrides for gas parameters if different from default
+  gas_parameters:
+    # x_o2_wet: 20.89 # Already in default, uncomment to override
+    # mol_volume_air: 25.291 # Already in default
+  # --- Feed/Medium properties ---
+  feed_parameters:
+    feed_glucose_concentration_g_l: 400.0
+    feed_glucose_density_g_ml: 1.150 # From your metadata
+    # Add other feed details if used (e.g., lactose)
+    # feed_lactose_concentration_g_l: null
+    # feed_lactose_density_g_ml: null
+  medium_parameters:
+    batch_glucose_concentration_g_l: 20.0 # Needs confirmation, typical but not in metadata
+    medium_density_g_ml: 1.088 # From your metadata
+  # --- Biomass details ---
+  biomass_composition: # mol/C-mol
+    C: 1.0
+    H: 1.77
+    N: 0.24
+    O: 0.49
+    molar_mass_c_mol: 26.565 # g/C-mol
+    source: 'https://bionumbers.hms.harvard.edu/bionumber.aspx?s=y&id=101800&ver=14'
+  # --- (Optional) Product details ---
+  # product_composition:
+  #   formula: 'C1 H1.58 N0.28 O0.3' # Example from metadata
+  #   molar_mass_c_mol: 22.3 # g/C-mol
+
+# --- Overrides for processing parameters ---
+processing:
+  feed_params:
+    start_volume_ml: 1070 # Example start volume, ADJUST AS NEEDED
+    feed_density: 1.150 # Override default if different
+    batch_medium_glucose: 20 # Confirm this value
+    feed_medium_glucose: 400
+
+  filtering:
+    apply_feed_filter: true # <<< ENABLE it for this experiment
+    median_filter_window: 5  # <<< Adjust window size if needed
+    median_filter_threshold: 10 # <<< Adjust threshold if needed
+
+# --- Column Mappings (Only needed if different from simplified default) ---
+# column_mapping:
+   # Add overrides here if needed for *this specific run's* files, e.g.:
+   # ph: 'PH_Sensor_1' # If the header was different in this specific file
+   # od600: 'Offline_OD' # Example for an offline file column
