@@ -140,13 +140,16 @@ class FermentationDataProcessor:
 
         return df_out
 
+    # In class FermentationDataProcessor (processor.py)
+    # In class FermentationDataProcessor (processor.py)
     def _calculate_base_flux_and_volume(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculates cumulative base volume based on phases and total added."""
         logger.info("Attempting to calculate base volume added...")
         df_out = df.copy()
-        df_out['base_volume_added_ml'] = 0.0 # Initialize
+        # Initialize column FIRST
+        df_out['base_volume_added_ml'] = 0.0
 
-        # --- Corrected Config Access ---
+        # --- Get Parameters & Validate ---
         try:
             total_base_g = self._get_nested_param(
                 [self.processing_params_key, self.base_titrant_key, 'total_added_g'],
@@ -157,78 +160,89 @@ class FermentationDataProcessor:
                 expected_type=float, is_required=True
             )
         except (ValueError, TypeError) as e:
-             logger.error(f"Cannot calculate base volume: {e}")
-             return df_out
-        # --- End Corrected Access ---
+            logger.error(f"Cannot calculate base volume: {e}")
+            return df_out  # Return df with initialized column
 
         duration_col = 'base_pump_duration'
         phase_col = 'process_phase'
 
-        # --- Column Validation ---
         if duration_col not in df_out.columns or phase_col not in df_out.columns:
             logger.warning(f"Processor: Missing '{duration_col}' or '{phase_col}'. Cannot calculate base volume.")
             return df_out
-        if not pd.api.types.is_numeric_dtype(df_out[duration_col]):
-            df_out[duration_col] = pd.to_numeric(df_out[duration_col], errors='coerce')
-            if not pd.api.types.is_numeric_dtype(df_out[duration_col]):
-                 logger.warning(f"Processor: Base duration '{duration_col}' not numeric. Cannot calculate base volume.")
-                 return df_out
+
+        duration_numeric = pd.to_numeric(df_out[duration_col], errors='coerce')
+        if not pd.api.types.is_numeric_dtype(duration_numeric) or duration_numeric.isnull().all():
+            logger.warning(
+                f"Processor: Base duration '{duration_col}' not valid numeric or all NaN. Cannot calculate base volume.")
+            return df_out
 
         total_base_ml = total_base_g / base_density_g_ml
 
-        # --- Identify Period & Calculate Duration ---
+        # --- Identify Period Based on Phases ---
         base_addition_phases = ['Batch', 'Fedbatch', 'induced Fedbatch']
         base_period_mask = df_out[phase_col].isin(base_addition_phases)
         if not base_period_mask.any():
-             logger.warning(f"No data in base addition phases {base_addition_phases}. Base volume 0.")
-             return df_out
-
-        first_phase_index = df_out[base_period_mask].index[0]
-        last_phase_index = df_out[base_period_mask].index[-1]
-
-        # Get duration just before the period starts
-        try:
-            loc_before_start = df_out.index.get_loc(first_phase_index) - 1
-            duration_start = 0.0 if loc_before_start < 0 else df_out.iloc[loc_before_start][duration_col]
-            if pd.isna(duration_start): duration_start = 0.0 # Treat NaN before start as 0
-        except Exception as e:
-            logger.warning(f"Could not get duration before index {first_phase_index}, assuming 0: {e}")
-            duration_start = 0.0
-
-        duration_end = df_out.loc[last_phase_index, duration_col]
-        if pd.isna(duration_end): # Find last valid duration if end is NaN
-            last_valid_duration = df_out.loc[base_period_mask, duration_col].dropna().iloc[-1] if df_out.loc[base_period_mask, duration_col].notna().any() else None
-            if last_valid_duration is not None:
-                duration_end = last_valid_duration
-                logger.warning(f"NaN base duration at end index {last_phase_index}. Using last valid: {duration_end:.2f}s")
-            else:
-                 logger.error("NaN base duration at end and no valid values in period.")
-                 return df_out
-
-        total_duration_s = duration_end - duration_start
-
-        if total_duration_s <= 0:
-            logger.warning(f"Total base duration during phases {base_addition_phases} ({total_duration_s}s) not positive. Base volume 0.")
+            logger.warning(f"No data in base addition phases {base_addition_phases}. Base volume 0.")
             return df_out
 
-        logger.info(f"Base period: Index {first_phase_index} to {last_phase_index}. Duration range: {duration_start:.2f}s to {duration_end:.2f}s. Total duration: {total_duration_s:.2f}s")
-        logger.info(f"Total base added: {total_base_g:.2f} g = {total_base_ml:.2f} mL")
+        period_durations = duration_numeric[base_period_mask]
+        if period_durations.dropna().empty:
+            logger.error("No valid base duration values found within the specified phases.")
+            return df_out
 
-        # --- Calculate Cumulative Base Volume ---
-        duration_numeric = pd.to_numeric(df_out[duration_col], errors='coerce').fillna(method='ffill').fillna(0)
-        cumulative_duration_since_start = (duration_numeric - duration_start).clip(lower=0)
-        # Calculate volume added based on fraction of total duration elapsed within the period
-        volume_added = cumulative_duration_since_start * (total_base_ml / total_duration_s)
-        # Apply only within the identified period, ensure 0 before, cap at total after
+        first_phase_index = period_durations.index[0]
+        last_phase_index = period_durations.index[-1]
+
+        # --- Get Boundary Durations Robustly ---
+        duration_start_of_period = period_durations.loc[first_phase_index]
+        if pd.isna(duration_start_of_period):
+            first_valid_duration = period_durations.dropna()
+            if first_valid_duration.empty:
+                logger.error("No valid base duration start value found within the period.")
+                return df_out
+            duration_start_of_period = first_valid_duration.iloc[0]
+            logger.warning(
+                f"NaN base duration at start index {first_phase_index}. Using first valid: {duration_start_of_period:.2f}s")
+
+        duration_end_of_period = period_durations.dropna().iloc[-1]
+
+        total_duration_s = duration_end_of_period - duration_start_of_period
+
+        if total_duration_s <= 0:
+            logger.warning(
+                f"Total base pump duration during relevant phases ({total_duration_s}s) not positive. Base volume added set to 0.")
+            return df_out
+
+        logger.info(f"Base addition period indices: {first_phase_index} to {last_phase_index}.")
+        logger.info(
+            f"Duration range within period: {duration_start_of_period:.2f}s to {duration_end_of_period:.2f}s. Total duration: {total_duration_s:.2f}s")
+        logger.info(f"Total base added (config): {total_base_g:.2f} g = {total_base_ml:.2f} mL")
+
+        # --- Calculate Cumulative Base Volume Added ---
+        # Use the original numeric duration, fill NaNs robustly
+        duration_filled = duration_numeric.ffill().fillna(0)
+
+        cumulative_duration_since_period_start = (duration_filled - duration_start_of_period).clip(lower=0)
+        volume_added = cumulative_duration_since_period_start * (total_base_ml / total_duration_s)
+
+        # --- Assign and Cap ---
+        # Initialize first, then apply calculations for the period
         df_out['base_volume_added_ml'] = 0.0
-        df_out.loc[first_phase_index:last_phase_index, 'base_volume_added_ml'] = volume_added[first_phase_index:last_phase_index]
-        df_out.loc[df_out.index > last_phase_index, 'base_volume_added_ml'] = total_base_ml # Cap after period
-        df_out['base_volume_added_ml'] = df_out['base_volume_added_ml'].clip(upper=total_base_ml) # Ensure cap everywhere
+        # Use .loc with the mask for assignment within the period
+        df_out.loc[base_period_mask, 'base_volume_added_ml'] = volume_added[base_period_mask]
+
+        # Set volume AFTER the period ends to the maximum total added volume
+        df_out.loc[df_out.index > last_phase_index, 'base_volume_added_ml'] = total_base_ml
+
+        # Ensure values before start are 0 (belt-and-suspenders)
+        df_out.loc[df_out.index < first_phase_index, 'base_volume_added_ml'] = 0.0
+
+        # Final clip only (NO fillna(0.0) here)
+        df_out['base_volume_added_ml'] = df_out['base_volume_added_ml'].clip(upper=total_base_ml)
 
         logger.info("Calculated 'base_volume_added_ml' column.")
+        logger.debug(f"Tail of base_volume_added_ml after calculation:\n{df_out['base_volume_added_ml'].tail()}")
         return df_out
-
-    # Replace _calculate_volume in processor.py again
 
     def _calculate_volume(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculates reactor volume, incorporating feed, base, and samples."""
@@ -248,19 +262,35 @@ class FermentationDataProcessor:
             df_out['volume_corrected_ml'] = np.nan
             return df_out
 
-        # --- Ensure Input Columns Exist & are Numeric (Defaulting missing/NaN ones to 0) ---
+        # --- Get Input Columns & Force Numeric, Fill NaNs ---
         feed_vol = pd.to_numeric(df_out.get('feed_ml', 0.0), errors='coerce').fillna(0.0)
         base_vol = pd.to_numeric(df_out.get('base_volume_added_ml', 0.0), errors='coerce').fillna(0.0)
 
         # --- Calculate Base Volume (start + feed + base) ---
-        # Perform calculation as a separate Series for clarity
-        calculated_volume_ml = start_volume + feed_vol + base_vol
-        df_out['volume_ml'] = calculated_volume_ml  # Assign the calculated Series
+        # Explicitly ensure components are floats before summing
+        try:
+            volume_calc = float(start_volume) + feed_vol.astype(float) + base_vol.astype(float)
+            df_out['volume_ml'] = volume_calc
+        except Exception as calc_error:
+            logger.error(f"Error during volume_ml calculation: {calc_error}")
+            df_out['volume_ml'] = np.nan  # Assign NaN if calculation fails
 
         logger.info(f"Calculated base 'volume_ml' (start={start_volume} + feed + base). Check tail:")
-        logger.info(f"\n{df_out[['feed_ml', 'base_volume_added_ml', 'volume_ml']].tail()}")
+        log_df_tail = pd.DataFrame({
+            'feed_ml_used': feed_vol.tail(),
+            'base_vol_used': base_vol.tail(),
+            'volume_ml_calc': df_out['volume_ml'].tail()  # Log directly from df
+        })
+        logger.info(f"\n{log_df_tail}")
 
         # --- Apply Sample Volume Correction ---
+        # Check if volume_ml calculation failed
+        if df_out['volume_ml'].isnull().all():
+            logger.warning("Base volume calculation failed, cannot calculate corrected volume.")
+            df_out['volume_corrected_ml'] = np.nan
+            df_out['cumulative_sample_volume_ml'] = 0.0
+            return df_out  # Return early
+
         if 'sample_volume_ml' in df_out.columns and 'is_sample' in df_out.columns:
             sample_vol_numeric = pd.to_numeric(df_out['sample_volume_ml'], errors='coerce')
             if sample_vol_numeric.notna().any():
@@ -273,12 +303,11 @@ class FermentationDataProcessor:
                 df_out['volume_corrected_ml'] = df_out['volume_ml'] - df_out['cumulative_sample_volume_ml']
                 logger.info("Calculated 'volume_corrected_ml' accounting for sample removal.")
             else:
-                logger.info("No valid 'sample_volume_ml' data found. 'volume_corrected_ml' equals base 'volume_ml'.")
+                logger.info("No valid 'sample_volume_ml' data. 'volume_corrected_ml' equals base 'volume_ml'.")
                 df_out['volume_corrected_ml'] = df_out['volume_ml'].copy()
                 df_out['cumulative_sample_volume_ml'] = 0.0
         else:
-            logger.info(
-                "No sample info ('sample_volume_ml' or 'is_sample'). 'volume_corrected_ml' equals base 'volume_ml'.")
+            logger.info("No sample info. 'volume_corrected_ml' equals base 'volume_ml'.")
             df_out['volume_corrected_ml'] = df_out['volume_ml'].copy()
             df_out['cumulative_sample_volume_ml'] = 0.0
 
