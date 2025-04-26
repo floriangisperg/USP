@@ -1,0 +1,99 @@
+# src/upstream_analysis/analysis/delisa_media_config.yaml
+# --- Standard DeLisa Medium Composition Definitions ---
+# Contains standard recipes, component concentrations, and typical densities.
+# Values here are used unless overridden by specific measurements in run_config.yaml
+
+# ==========================
+# BATCH MEDIUM DEFINITION
+# ==========================
+batch_medium:
+  name: "DeLisa Glucose Batch"
+  standard_density_g_ml: 1.088 # Typical/calculated density for this standard recipe
+  components:
+    # Major components relevant for balancing/consumption
+    glucose: # Name matches substrate_properties key if possible
+      formula: "C6H12O6*H2O" # Formula including hydration
+      concentration_g_l: 22.00
+      mw_g_mol: 198.17         # Molar mass of Glucose Monohydrate
+      c_atoms_per_molecule: 6
+      role: "Carbon source"
+    ammonium_phosphate: # (NH4)2HPO4
+      formula: "(NH4)2HPO4"
+      concentration_g_l: 4.00
+      mw_g_mol: 132.06
+      n_atoms_per_molecule: 2
+      role: "Nitrogen source, buffer"
+    citric_acid: # Anhydrous for formula C6H8O7
+      formula: "C6H8O7"
+      concentration_g_l: 1.70
+      mw_g_mol: 192.12
+      c_atoms_per_molecule: 6
+      role: "Chelator"
+    # Other components (less critical for basic balancing, included for completeness)
+    kh2po4:
+      formula: "KH2PO4"
+      concentration_g_l: 13.30
+      role: "Buffer"
+    anti_foam_ppg: # PolyPropylene Glycol (structure varies)
+      formula: "PPG" # Placeholder
+      concentration_g_l: 0.10
+      role: "Antifoam agent"
+    mgso4_7h2o:
+      formula: "MgSO4*7H2O"
+      concentration_g_l: 1.20
+      role: "Magnesium source"
+    fe_citrate: # Ferric Citrate (complex, approximate formula)
+      formula: "C6H5FeO7" # Approx.
+      concentration_g_l: 0.1000
+      mw_g_mol: 245.0
+      c_atoms_per_molecule: 6 # Based on citrate
+      role: "Iron source"
+    edta:
+      formula: "C10H16N2O8" # EDTA Free Acid
+      concentration_g_l: 0.0084
+      mw_g_mol: 292.24
+      c_atoms_per_molecule: 10
+      n_atoms_per_molecule: 2
+      role: "Chelator"
+    zn_acetate_2h2o:
+      formula: "Zn(CH3COO)2*2H2O"
+      concentration_g_l: 0.0130
+      c_atoms_per_molecule: 4 # Methyl + Carbonyl carbons
+      role: "Zinc source"
+    thiamine_hcl:
+      formula: "C12H17ClN4OS*HCl"
+      concentration_g_l: 0.0045
+      c_atoms_per_molecule: 12
+      n_atoms_per_molecule: 4
+      role: "Vitamin"
+
+# ==========================
+# FEED MEDIUM DEFINITION (Feed 1)
+# ==========================
+feed_1: # Use consistent naming ('feed_1', 'feed_2', etc.)
+  name: "DeLisa Glucose Feed"
+  standard_density_g_ml: 1.150 # Typical/calculated density for this standard recipe
+  components:
+    glucose: # Name matches substrate_properties key if possible
+      formula: "C6H12O6*H2O"
+      concentration_g_l: 440.00
+      mw_g_mol: 198.17
+      c_atoms_per_molecule: 6
+      role: "Carbon source"
+    mgso4_7h2o:
+      formula: "MgSO4*7H2O"
+      concentration_g_l: 20.00
+      role: "Magnesium source"
+    # Add other feed components if needed for balancing/tracking
+    fe_citrate:
+      formula: "C6H5FeO7"
+      concentration_g_l: 0.04000
+      role: "Iron source"
+    edta:
+      formula: "C10H16N2O8"
+      concentration_g_l: 0.01300
+      role: "Chelator"
+    zn_acetate_2h2o:
+      formula: "Zn(CH3COO)2*2H2O"
+      concentration_g_l: 0.01600
+      role: "Zinc source"

@@ -90,6 +90,11 @@ try:
     logger.info("Processing aligned data (calculating feed, volume)...")
     df_processed = processor.process_data(df_merged)
     logger.info(f"Processed data shape: {df_processed.shape}")
+
+    # --- ADD DEBUG LINE ---
+    logger.debug(f"Columns available just before final print: {list(df_processed.columns)}")
+    # --- END DEBUG LINE ---
+
     print("\nProcessed Data Head (with feed/volume):\n", df_processed[['process_time', 'balance', 'feed_g', 'feed_ml', 'volume_ml']].head())
     print(df_processed[['process_time', 'balance', 'feed_g', 'feed_ml', 'volume_ml']].tail())
 
@@ -101,6 +106,13 @@ try:
     # Save the *processed* data now
     df_processed.to_csv(processed_output_path, index=False, sep=';', decimal=',')
     logger.info(f"Saved processed data to {processed_output_path}")
+
+    # End of real_data_analysis.py, before saving
+    logger.info("Final check of volume calculation components (Tail):")
+    print(df_processed[['process_time', 'feed_ml', 'base_volume_added_ml', 'volume_ml', 'cumulative_sample_volume_ml',
+                        'volume_corrected_ml']].tail())
+
+    logger.info(f"Saving results to: {output_dir}")
 
     # Conditionally save samples file (which now includes processed columns)
     # Extract samples *after* processing if you want processed columns in samples file

@@ -1,115 +1,103 @@
-# src/data/config/default_config.yaml
-# --- Default settings, expected to be overridden by experiment configs ---
+# src/upstream_analysis/config/default_config.yaml
+# --- Default settings for the analysis library ---
 
 parsing:
   bioreactor:
     decimal_separator: ','
     column_separator: ';'
-    date_format: '%d.%m.%Y %H:%M' # Adjusted based on rawdata.csv
+    date_format: '%d.%m.%Y %H:%M'
     skiprows: 1
   offline:
-    decimal_separator: '.' # Default for typical offline files
-    column_separator: ',' # Default for typical offline files
-    date_format: 'guess'  # Let pandas guess by default
-    sheet_name: 0         # Default sheet for Excel
+    decimal_separator: '.'
+    column_separator: ','
+    date_format: 'guess'
+    sheet_name: 0
 
-# Add mappings for offline files as needed in experiment config.
+# Standard Column Mapping (Override in run_config if needed)
 column_mapping:
-  date_time_utc: 'Date Time UTC'
-  date_time_local: 'Date Local Time'
-  batch_time_sec: 'Batch Time, sec'
-  # Note: Processing step converts this sec value to h
-  batch_time_since_inoc_h: 'Batch Time (since inoc.), sec'
-  process_phase: 'Phase'
-  phase_time_sec: 'Phase Time, sec'
-  foam: 'Foam, -'
-  air_flow: 'AirFlow, l/min'
-  total_flow: 'TotalFlow, l/min'
-  o2_flow: 'Gas2Flow, l/min' # Assuming Gas2 is O2
-  gas_mix: 'GasMix'
-  acid_pump_pct: 'Pump1, %' # Assumed mapping
-  acid_pump_duration: 'Pump1.Duration, -'
-  base_pump_pct: 'Pump2, %' # Assumed mapping
-  base_pump_duration: 'Pump2.Duration, -'
-  inducer_pump_pct: 'Pump3, %' # Assumed mapping
-  inducer_pump_duration: 'Pump3.Duration, -'
-  feed_pump_pct: 'Pump4, %' # Assumed mapping
-  feed_pump_duration: 'Pump4.Duration, -'
-  stirrer_speed: 'Stirrer, 1/min'
-  temperature: 'Temperature, °C'
-  balance: 'Balance, g'
-  analog_io1: 'AnalogIO1, %'
-  analog_io2: 'AnalogIO2, %'
-  ph: 'pH, -'
-  po2: 'pO2, %'
-  offgas_co2: 'GenericGasAnalyser.ExitCO2, %'
-  offgas_o2: 'GenericGasAnalyser.ExitO2, %'
-  od600_online: 'OD600' # Keep OD600 mapping simple for online/offline potential
-  feedrate_exp: 'ExponentialFeeding.Feedrate, %'
-  feedrate_ind: 'FeedingInduction.Feedrate2, %'
-  # --- Standardized names for offline data (add source patterns in exp. config if needed) ---
-  process_time: 'Process Time [h]' # Default assumes hours directly
-  biomass_g_l: 'Biomass [g/L]'
-  glucose_g_l: 'Glucose [g/L]'
-  protein_g_l: 'Protein concentration [g/L]'
-  sample_volume_ml: 'Sample volume [mL]'
-  acetate_g_l: 'Acetate [g/L]' # <<< NEW Standard Name Added
-  viability_pct: 'Viability [%]' # <<< NEW Standard Name Added
-  od600: 'OD' # Keep the simple OD600 from online mapping as primary default
+   # --- Online Data ---
+   # 'Raw Header from CSV': standard_internal_name
+   'Date Time UTC':                  date_time_utc
+   'Date Local Time':                date_time_local
+   'Batch Time, sec':                batch_time_sec
+   'Batch Time (since inoc.), sec':  batch_time_since_inoc_sec
+   'Phase':                          process_phase
+   'Phase Time, sec':                phase_time_sec
+   'Foam, -':                        foam
+   'AirFlow, l/min':                 air_flow
+   'TotalFlow, l/min':               total_flow
+   'Gas2Flow, l/min':                o2_flow
+   'GasMix':                         gas_mix
+   'Pump1, %':                       acid_pump_pct
+   'Pump1.Duration, -':              acid_pump_duration
+   'Pump2, %':                       base_pump_pct
+   'Pump2.Duration, -':              base_pump_duration
+   'Pump3, %':                       inducer_pump_pct
+   'Pump3.Duration, -':              inducer_pump_duration
+   'Pump4, %':                       feed_pump_pct
+   'Pump4.Duration, -':              feed_pump_duration
+   'Stirrer, 1/min':                 stirrer_speed
+   'Temperature, °C':                temperature # <-- Use the actual degree symbol if your file has it
+   # If you still have encoding issues with '°', use the workaround:
+#   'Temperature, Â°C':             temperature
+   'Balance, g':                     balance
+   'AnalogIO1, %':                   analog_io1
+   'AnalogIO2, %':                   analog_io2
+   'pH, -':                          ph
+   'pO2, %':                         po2
+   'GenericGasAnalyser.ExitCO2, %':  offgas_co2
+   'GenericGasAnalyser.ExitO2, %':   offgas_o2
+   'OD600':                          od600_online
+   'ExponentialFeeding.Feedrate, %': feedrate_exp
+   'FeedingInduction.Feedrate2, %':  feedrate_ind
 
+   # --- Offline Data ---
+   # 'Raw Header from Samples File': standard_internal_name
+   'Process Time [h]':               process_time
+   'Biomass [g/L]':                  biomass_g_l
+   'Glucose [g/L]':                  glucose_g_l
+   'Protein concentration [g/L]':    protein_g_l
+   'Sample volume [mL]':             sample_volume_ml
+   'Acetate [g/L]':                  acetate_g_l
+   'Viability [%]':                  viability_pct
+   'OD':                             od600
+
+# Default Settings for Library Operation
 cleaning:
   filter_preparation: true
   balance_tare_correction: true
+  calculate_process_time: true
   median_filter: true
-  calculate_process_time: true # Creates 'process_time' column in hours
-  balance_columns: ['balance'] # Use standardized name
+  median_filter_columns: ['balance']
+  median_filter_window: 10
+  median_filter_threshold: 10
   balance_tare_threshold: -100
-  median_filter_columns: ['balance'] # Use standardized name
-  median_filter_window: 20
-  median_filter_threshold: 30
 
 alignment:
-  online_time_col: 'process_time' # Use standardized name
-  offline_time_col: 'process_time' # Use standardized name
+  online_time_col: 'process_time'
+  offline_time_col: 'process_time'
   tolerance_hours: 0.02
+  save_separate_samples_file: true
 
 processing:
-  # General physical/chemical constants (less likely to change per experiment)
   constants:
-    mw_glucose: 180.156 # g/mol
-    # Add other general constants if needed
-  # Gas calculation defaults (can be overridden)
-  gas_params:
-    x_co2_in: 0.04    # mol%
-    x_o2_in: 21.0     # mol%
-    x_o2_wet: 20.89   # mol% (from your metadata example)
-    mol_volume_air: 25.291 # L/mol (state T/P, e.g., @ 35°C)
-  # Parameters requiring experiment-specific values (set to null in default)
-  # The code using these MUST check if they are provided in the final merged config.
-  feed_params:
-    start_volume_ml: 1070
-    feed_density: 1.15 # g/mL
-    batch_medium_glucose: 20 # g/L
-    feed_medium_glucose: 400 # g/L
-  biomass_params:
-    # Set defaults based on E. coli example, but can be overridden
-    c_in_biomass: 24.5 # mmol C / g biomass
-    elemental_composition: # mol/C-mol (based on your metadata)
-      C: 1.0
-      H: 1.77
-      N: 0.24
-      O: 0.49
-    molar_mass_c_mol: 26.565 # g/C-mol (calculated from above)
-  # --- Phases triggering induction ---
+    mw_glucose: 180.156 # Still useful as a general constant, though molar mass per C-mol is often more directly used.
+  biomass_params: # Default biological properties
+    elemental_composition_c_mol: { C: 1.0, H: 1.77, N: 0.24, O: 0.49 }
+    molar_mass_g_c_mol: 26.565
+    ash_fraction_g_g: 0.08
+  product_params:
+    name: null
+    nitrogen_content_fraction: null
   induced_phases:
     - 'induced Fedbatch'
     - 'Induced fed batch'
-    - 'Production' # Add other common names if needed
-  filtering:
-    apply_feed_filter: true # Default to OFF
-    median_filter_window: 10  # Window specifically for feed balance filtering
-    median_filter_threshold: 5 # Threshold specifically for feed balance filtering
+    - 'Production'
+  filtering: # Specific to feed calculations
+    apply_feed_filter: true
+    median_filter_window: 5
+    median_filter_threshold: 10
 
-# Placeholder sections
+# Placeholders
 analysis: {}
 visualization: {}
