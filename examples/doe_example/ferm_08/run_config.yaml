@@ -1,17 +1,18 @@
+# examples/real_data_example/run_config.yaml
 # --- Experiment-Specific Configuration Template ---
 
 # ==================================================
 # 1. METADATA
 # ==================================================
 metadata:
-  fermentation_id: 'CDL_scFv_His_DoE_RunOpt' # REQUIRED
-  date_start: '2024-01-31'                # REQUIRED
+  fermentation_id: 'CDL_scFv_His_DoE_RunX' # REQUIRED
+  date_start: '2023-06-20'                # REQUIRED
   strain: 'E. coli BL21DE3 (pET)'         # REQUIRED
   reactor: 'MF2 R1'                       # REQUIRED
   media_base: 'DeLisa Glucose'
-  induction_summary: '1mM IPTG, qs=0.58, T=31°C, 8h'
+  induction_summary: '1mM IPTG, qs=0.4, T=30°C, 8h'
   # --- Link to the MEDIA definition file (contains components, conc., std densities) ---
-  media_config_file: '../shared_configs/delisa_media_config.yaml' # Relative path
+  media_config_file: 'delisa_media_config.yaml' # REQUIRED if doing balancing/yields
 
 # ==================================================
 # 2. COLUMN MAPPING OVERRIDE (Optional)
@@ -26,13 +27,13 @@ metadata:
 processing_parameters:
 
   reactor_setup:
-    initial_volume_ml: 1000.0
+    initial_volume_ml: 1000.0       # REQUIRED: Starting batch volume
 
   gas_params: # REQUIRED: Inlet gas and physical properties for THIS run
     inlet_o2_mol_pct: 21.0          # Inlet O2 % (mol/mol)
     inlet_co2_mol_pct: 0.04         # Inlet CO2 % (mol/mol)
-    inlet_h2o_mol_pct: 0.007619048        # Inlet H2O vapor % (mol/mol)
-    outlet_o2_wet_mol_pct: 20.84     # Reference/validation value (optional)
+    inlet_h2o_mol_pct: 0.476        # Inlet H2O vapor % (mol/mol) - Verify this value
+    # outlet_o2_wet_mol_pct: 20.9     # Reference/validation value (optional)
     air_flow_l_min: 0.12            # Assumed constant airflow (L/min) - Will be overridden if time-series data is used
     molar_volume_air_l_mol: 25.291  # Molar volume (L/mol)
     molar_volume_temp_c: 35.0       # Temperature at which molar volume is valid (°C)
@@ -51,10 +52,10 @@ processing_parameters:
 
   base_titrant: # Define the base used in THIS run
     compound: 'NH4OH'
-    molarity_mol_l: 6.95
-    density_g_ml: 0.947
+    molarity_mol_l: 13.4
+    density_g_ml: 0.91
     pump_channel: 'Pump2' # Links to the base pump defined in column_mapping
-    total_added_g: 0 # 138.3 # g
+    total_added_g: 0 #250 # g
 
   biomass: # Override defaults from default_config.yaml if needed
     # ash_fraction_g_g: 0.085
@@ -68,7 +69,7 @@ processing_parameters:
 
   product_properties: # Specific to product quantified in THIS run
     name: 'scFv-His'
-#    nitrogen_content_gN_gP: 0.1647
+    nitrogen_content_gN_gP: 0.1647
 
 # ==================================================
 # 4. PROCESSING STEP OVERRIDES (Optional)

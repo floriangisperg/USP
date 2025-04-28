@@ -64,7 +64,8 @@ column_mapping:
 
 # Default Settings for Library Operation
 cleaning:
-  filter_preparation: true
+  filter_preparation: true          # Default: Remove 'Preparation' phase
+  rename_preparation_to_batch: false # Default is NOT to rename
   balance_tare_correction: true
   calculate_process_time: true
   median_filter: true
@@ -81,6 +82,12 @@ alignment:
   force_align_last_sample: true
 
 processing:
+  processing_parameters:
+    balance_mode: 'feed_source' # Default assumption: balance measures feed bottle (decreasing weight)
+    # --- reactor_setup, gas_params, etc. can remain nested if preferred ---
+    # --- or be flattened if you never override them individually ---
+    reactor_setup:
+      initial_volume_ml: null # Still null, requires run_config
   constants:
     mw_glucose: 180.156 # Still useful as a general constant, though molar mass per C-mol is often more directly used.
   biomass_params: # Default biological properties

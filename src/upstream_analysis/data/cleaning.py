@@ -24,40 +24,69 @@ class FermentationDataCleaner:
         cleaned_df = df.copy()
         logger.info("Starting data cleaning process...")
 
-        # Step 1: Filter unwanted initial phases (like Preparation)
-        if self.cleaning_config.get('filter_preparation', True):
+        phase_col = 'process_phase'
+        balance_mode = self.config.get('processing_parameters', {}).get('balance_mode',
+                                                                        'reactor_weight')  # Get balance mode
+
+        # --- Handle Preparation Phase ---
+        rename_prep = self.cleaning_config.get('rename_preparation_to_batch', False)
+        filter_prep = self.cleaning_config.get('filter_preparation', True)
+        logger.info(
+            f"Cleaning config flags: rename_prep={rename_prep}, filter_prep={filter_prep}, balance_mode='{balance_mode}'")
+
+        if phase_col not in cleaned_df.columns:
+            logger.warning(f"No '{phase_col}' column found. Skipping phase renaming/filtering.")
+        elif rename_prep:
+            logger.info("Executing rename logic...")
+            prep_mask = cleaned_df[phase_col].astype(str).str.strip() == 'Preparation'
+            rows_renamed = prep_mask.sum()
+            if rows_renamed > 0:
+                cleaned_df.loc[prep_mask, phase_col] = 'Batch'
+                logger.info(f"Renamed {rows_renamed} 'Preparation' rows to 'Batch'.")
+            else:
+                logger.info("No 'Preparation' phase found to rename.")
+        elif filter_prep:
+            logger.info("Executing filter logic (rename is false, filter is true)...")
             cleaned_df = self._filter_preparation_phase(cleaned_df)
+        else:
+            logger.info("Keeping 'Preparation' phase (rename and filter are both disabled).")
 
-        # Step 2: Apply tare correction to balance sensor data
-        if self.cleaning_config.get('balance_tare_correction', True):
-            cleaned_df = self._balance_tare_correction(cleaned_df)
+        # --- Conditional Tare Correction ---
+        # ONLY apply tare correction if balance measures reactor weight
+        if balance_mode == 'reactor_weight':
+            if self.cleaning_config.get('balance_tare_correction', True):
+                logger.info("Applying balance tare correction (mode: reactor_weight).")
+                cleaned_df = self._balance_tare_correction(cleaned_df)
+            else:
+                logger.info("Balance tare correction skipped (disabled in config).")
+        else:
+            logger.info(f"Balance tare correction skipped (mode: {balance_mode}).")
+        # --- End Tare Correction ---
 
-        # Step 3: Apply median filter to specified raw sensor columns (e.g., balance)
-        if self.cleaning_config.get('median_filter', False): # Default is OFF
+        # Apply median filter (still useful regardless of balance mode)
+        if self.cleaning_config.get('median_filter', True):
             cleaned_df = self._rolling_median_filter(cleaned_df)
         else:
             logger.debug("Median filter step skipped (disabled in config).")
 
-        # Step 4: Calculate standardized process time in hours
+        # Calculate standardized process time
         if self.cleaning_config.get('calculate_process_time', True):
             cleaned_df = self._calculate_process_time(cleaned_df)
 
         logger.info("Data cleaning process finished.")
         return cleaned_df
 
+    # Keep _filter_preparation_phase as is
     def _filter_preparation_phase(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Filters out 'Preparation' phase rows."""
+        # ... (no changes needed here) ...
         if 'process_phase' in df.columns:
             original_rows = len(df)
             phase_to_filter = 'Preparation'
-            # Make sure we handle potential leading/trailing spaces if column wasn't perfectly parsed
             mask = df['process_phase'].astype(str).str.strip() != phase_to_filter
             filtered_df = df[mask].copy()
             rows_removed = original_rows - len(filtered_df)
             if rows_removed > 0:
                 logger.info(f"Filtered out {rows_removed} rows from '{phase_to_filter}' phase.")
-            else:
-                 logger.info("No 'Preparation' phase rows found or 'process_phase' column missing/already filtered.")
             return filtered_df
         else:
             logger.warning("No 'process_phase' column found, cannot filter preparation phase.")
@@ -127,26 +156,26 @@ class FermentationDataCleaner:
         return result_df
 
     def _calculate_process_time(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates 'process_time' in hours from 'batch_time_sec', relative to the first row of the cleaned data."""
+        """Calculates 'process_time' in hours, relative to the first row of the cleaned data."""
         result_df = df.copy()
-        time_col_sec = 'batch_time_sec' # Expect standardized name
+        # Use batch_time_sec as the source - ensure this mapping is correct in default_config
+        time_col_sec = 'batch_time_sec'
 
         if time_col_sec in result_df.columns:
-            if pd.api.types.is_numeric_dtype(result_df[time_col_sec]):
+            time_numeric = pd.to_numeric(result_df[time_col_sec], errors='coerce')
+            if time_numeric.notna().any():
                 logger.info(f"Calculating 'process_time' (hours) from '{time_col_sec}'.")
-                # Ensure it starts from 0 relative to the *first row of this DataFrame*
-                if not result_df.empty:
-                    # Find the first non-NaN time value to use as the reference start time
-                    first_valid_time_sec = result_df[time_col_sec].dropna().iloc[0] if result_df[time_col_sec].notna().any() else 0
-                    result_df['process_time'] = (result_df[time_col_sec] - first_valid_time_sec) / 3600.0
-                    logger.info(f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec.")
-                else:
-                    result_df['process_time'] = pd.Series(dtype=float) # Empty series if df is empty
+                # Find the first non-NaN time value to use as the reference start time
+                first_valid_time_sec = time_numeric.dropna().iloc[0]
+                result_df['process_time'] = (time_numeric - first_valid_time_sec) / 3600.0
+                logger.info(
+                    f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec.")
             else:
-                logger.warning(f"Column '{time_col_sec}' is not numeric, cannot calculate process time.")
+                logger.warning(
+                    f"Column '{time_col_sec}' contains only NaNs or non-numeric data. Cannot calculate process time.")
                 result_df['process_time'] = np.nan
         else:
-            logger.warning(f"Column '{time_col_sec}' not found, cannot calculate process time.")
+            logger.warning(f"Column '{time_col_sec}' not found. Cannot calculate process time.")
             result_df['process_time'] = np.nan
 
         return result_df

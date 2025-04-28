@@ -63,84 +63,107 @@ class FermentationDataProcessor:
 
         return value
 
+    # In class FermentationDataProcessor (processor.py)
+
+    # In class FermentationDataProcessor (processor.py)
+
     def _calculate_feed(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates cumulative feed added based on balance changes."""
-        logger.info("Attempting to calculate feed...")
+        """
+        Calculates cumulative feed added based on the DECREASE in balance readings
+        during specified feeding phases, identifying the tare point as the peak
+        balance value around the start of the first feeding phase.
+        """
+        logger.info("Attempting to calculate feed (using peak balance as tare)...")
         df_out = df.copy()
-        df_out['feed_g'] = np.nan
-        df_out['feed_ml'] = np.nan
+        df_out['feed_g'] = 0.0
+        df_out['feed_ml'] = 0.0
 
         balance_col = 'balance'
         phase_col = 'process_phase'
+        time_col = 'process_time'
 
-        if balance_col not in df_out.columns or phase_col not in df_out.columns:
-            logger.warning(f"Processor: Missing '{balance_col}' or '{phase_col}'. Cannot calculate feed.")
+        # --- Validate Inputs ---
+        if not all(col in df_out.columns for col in [balance_col, phase_col, time_col]):
+            logger.warning(
+                f"Processor: Missing required columns ('{balance_col}', '{phase_col}', '{time_col}'). Cannot calculate feed.")
             return df_out
 
         try:
-            # --- Corrected Config Access ---
             feed_density = self._get_nested_param(
                 [self.processing_params_key, self.feed_def_key, 'feed_1', 'density_g_ml'],
                 expected_type=float, is_required=True
             )
-            # --- End Corrected Access ---
         except (ValueError, TypeError) as e:
             logger.error(f"Cannot calculate feed: {e}")
             return df_out
 
         df_out[balance_col] = pd.to_numeric(df_out[balance_col], errors='coerce')
+        # We need to handle NaNs, but DON'T fill with 0 yet, as we need the peak value.
         if df_out[balance_col].isnull().all():
-            logger.warning("Processor: Balance column empty/NaNs. Cannot calculate feed.")
+            logger.warning("Processor: Balance column empty/all NaNs. Cannot calculate feed.")
             return df_out
 
-        feed_start_index = None
-        balance_at_feed_start = np.nan
-        phases_before_feed = ['Preparation', 'Batch']
-        feeding_phases_data = df_out[~df_out[phase_col].isin(phases_before_feed)]
+        # --- Identify Start of FIRST Feeding Phase ---
+        feeding_phases = ['Fedbatch', 'induced Fedbatch']
+        feeding_phases_mask = df_out[phase_col].isin(feeding_phases)
 
-        if not feeding_phases_data.empty:
-            feed_start_index = feeding_phases_data.index[0]
-            valid_balances = df_out.loc[feed_start_index:, balance_col].dropna()
-            if not valid_balances.empty:
-                balance_at_feed_start = valid_balances.iloc[0]
-                logger.info(f"Processor: Feed start index {feed_start_index}. Tare balance {balance_at_feed_start:.2f}g")
-            else:
-                logger.error("Processor: Cannot find valid balance reading at/after feed start.")
-                feed_start_index = None
-        else:
-            logger.warning("Processor: No feeding phases detected. Cannot calculate feed.")
+        if not feeding_phases_mask.any():
+            logger.warning(f"No feeding phases {feeding_phases} found. Feed calculated as 0.")
+            return df_out
 
-        if feed_start_index is not None and pd.notna(balance_at_feed_start):
-            df_out['feed_g'] = balance_at_feed_start - df_out[balance_col]
-            df_out.loc[df_out.index < feed_start_index, 'feed_g'] = 0.0
+        first_feed_index = df_out[feeding_phases_mask].index[0]
+        first_feed_time = df_out.loc[first_feed_index, time_col]
+        logger.info(
+            f"First feeding phase ('{df_out.loc[first_feed_index, phase_col]}') starts at index: {first_feed_index} (time: {first_feed_time:.2f}h)")
 
-            # --- ADD DEBUG ---
-            logger.debug(f"Feed_g calculated BEFORE clip/cummax (Tail):\n{df_out['feed_g'].tail()}")
-            # --- END DEBUG ---
+        # --- Find Initial Feed Weight (Tare Point = Peak Balance Near Start) ---
+        # Look for the max balance value in a small window around the feed start
+        # Define a window (e.g., +/- 5 points, adjust if needed)
+        window_size = 5
+        start_search_loc = max(0, df_out.index.get_loc(first_feed_index) - window_size)
+        end_search_loc = min(len(df_out), df_out.index.get_loc(first_feed_index) + window_size + 1)
+        search_indices = df_out.index[start_search_loc:end_search_loc]
 
-            feed_g_series = df_out.loc[df_out.index >= feed_start_index, 'feed_g'].copy()
-            feed_g_series = feed_g_series.clip(lower=0)
+        balance_window = df_out.loc[search_indices, balance_col].dropna()
 
-            # --- ADD DEBUG ---
-            logger.debug(f"Feed_g series AFTER clip (Tail):\n{feed_g_series.tail()}")
-            # --- END DEBUG ---
+        if balance_window.empty:
+            logger.error(f"Cannot find any valid balance readings around feed start index {first_feed_index}.")
+            return df_out
 
-            # Cummax handling (forward fill NaN, apply cummax, restore NaN) - robust way
-            nan_mask = feed_g_series.isna()
-            feed_g_series.ffill(inplace=True)
-            feed_g_series.fillna(0, inplace=True) # Fill remaining NaNs at start if any
-            feed_g_series_cummax = feed_g_series.cummax()
-            feed_g_series_cummax[nan_mask] = np.nan # Restore NaNs
-            df_out.loc[df_out.index >= feed_start_index, 'feed_g'] = feed_g_series_cummax
+        # The tare point is the maximum value in this window
+        balance_at_feed_start = balance_window.max()
+        tare_index_approx = balance_window.idxmax()  # Index where max occurred
 
-            df_out['feed_ml'] = df_out['feed_g'] / feed_density
-            logger.info(f"Processor: Calculated feed_g and feed_ml (density {feed_density} g/mL).")
-        else:
-            logger.warning("Processor: Feed calculation skipped or failed.")
+        logger.info(
+            f"Using peak balance value {balance_at_feed_start:.2f}g (found near index {tare_index_approx}) as initial feed weight reference.")
+
+        # --- Calculate Feed Added ---
+        # Feed added = Initial feed weight - Current feed weight
+        # Handle NaNs in balance *after* finding the tare point
+        balance_filled = df_out[balance_col].ffill().fillna(
+            balance_at_feed_start)  # Fill NaNs with preceding value or tare
+        feed_diff = balance_at_feed_start - balance_filled
+
+        # Apply calculation only FROM the feed start index onwards
+        feed_g_series = feed_diff.loc[df_out.index >= first_feed_index].copy()
+
+        # Clip negative values & ensure monotonicity with cummax
+        feed_g_series_clipped = feed_g_series.clip(lower=0)
+        nan_mask_feed = feed_g_series_clipped.isna()  # Should be few/no NaNs now
+        feed_g_filled_for_cummax = feed_g_series_clipped.ffill().fillna(0)
+        feed_g_cummax = feed_g_filled_for_cummax.cummax()
+        feed_g_cummax[nan_mask_feed] = np.nan  # Restore original NaNs if any
+
+        # Assign the cumulative max value back
+        df_out.loc[df_out.index >= first_feed_index, 'feed_g'] = feed_g_cummax
+
+        # Calculate feed_ml
+        df_out['feed_ml'] = df_out['feed_g'] / feed_density
+        logger.info(f"Processor: Calculated feed_g and feed_ml (density {feed_density} g/mL).")
+        logger.debug(f"Feed_g calculated (Tail):\n{df_out['feed_g'].tail()}")
 
         return df_out
 
-    # In class FermentationDataProcessor (processor.py)
     # In class FermentationDataProcessor (processor.py)
     def _calculate_base_flux_and_volume(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculates cumulative base volume based on phases and total added."""
