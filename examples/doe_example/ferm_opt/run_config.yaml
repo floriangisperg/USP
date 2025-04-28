@@ -1,0 +1,84 @@
+# --- Experiment-Specific Configuration Template ---
+
+# ==================================================
+# 1. METADATA
+# ==================================================
+metadata:
+  fermentation_id: 'CDL_scFv_His_DoE_RunOpt' # REQUIRED
+  date_start: '2024-01-31'                # REQUIRED
+  strain: 'E. coli BL21DE3 (pET)'         # REQUIRED
+  reactor: 'MF2 R1'                       # REQUIRED
+  media_base: 'DeLisa Glucose'
+  induction_summary: '1mM IPTG, qs=0.58, T=31°C, 8h'
+  # --- Link to the MEDIA definition file (contains components, conc., std densities) ---
+  media_config_file: '../shared_configs/delisa_media_config.yaml' # Relative path
+
+# ==================================================
+# 2. COLUMN MAPPING OVERRIDE (Optional)
+# ==================================================
+# Define here ONLY if headers DIFFER from default_config.yaml
+# column_mapping:
+#    'Some Different Header': date_time_utc
+
+# ==================================================
+# 3. PROCESSING PARAMETERS - Values Specific to THIS Run
+# ==================================================
+processing_parameters:
+
+  reactor_setup:
+    initial_volume_ml: 1000.0
+
+  gas_params: # REQUIRED: Inlet gas and physical properties for THIS run
+    inlet_o2_mol_pct: 21.0          # Inlet O2 % (mol/mol)
+    inlet_co2_mol_pct: 0.04         # Inlet CO2 % (mol/mol)
+    inlet_h2o_mol_pct: 0.007619048        # Inlet H2O vapor % (mol/mol)
+    outlet_o2_wet_mol_pct: 20.84     # Reference/validation value (optional)
+    air_flow_l_min: 0.12            # Assumed constant airflow (L/min) - Will be overridden if time-series data is used
+    molar_volume_air_l_mol: 25.291  # Molar volume (L/mol)
+    molar_volume_temp_c: 35.0       # Temperature at which molar volume is valid (°C)
+
+  feed_definitions:
+    feed_1: # Feed linked to feed_pump (e.g., Pump4)
+      name: 'Glucose Feed'
+      density_g_ml: 1.150
+
+  medium_definitions: # Batch medium properties
+    # --- Density Override (Optional) ---
+    # If the measured density for THIS run's batch differs significantly
+    # from the standard value in media_config.yaml, specify it here:
+    # density_g_ml: 1.090 # Example: Slightly different measurement
+    pass # Otherwise, uses density from media_config_file
+
+  base_titrant: # Define the base used in THIS run
+    compound: 'NH4OH'
+    molarity_mol_l: 13.4
+    density_g_ml: 0.91
+    pump_channel: 'Pump2' # Links to the base pump defined in column_mapping
+    total_added_g: 138.3 # g
+
+  biomass: # Override defaults from default_config.yaml if needed
+    # ash_fraction_g_g: 0.085
+    pass
+
+  substrate_properties: # Molar masses on C-mol basis (can live in default or here)
+    glucose:
+      molar_mass_g_c_mol: 30.03
+    acetate:
+      molar_mass_g_c_mol: 29.5
+
+  product_properties: # Specific to product quantified in THIS run
+    name: 'scFv-His'
+#    nitrogen_content_gN_gP: 0.1647
+
+# ==================================================
+# 4. PROCESSING STEP OVERRIDES (Optional)
+# ==================================================
+processing_step_overrides:
+  # cleaning:
+  #   median_filter: false
+  # alignment:
+  #   tolerance_hours: 0.03
+   processing:
+     induced_phases:
+        - 'induced Fedbatch'
+        - 'Production'

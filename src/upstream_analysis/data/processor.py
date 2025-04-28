@@ -315,12 +315,49 @@ class FermentationDataProcessor:
 
         return df_out
 
+    def _add_induction_indicator(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Adds a binary 'is_induced' column based on process phases."""
+        logger.info("Adding induction indicator column...")
+        df_out = df.copy()
+        df_out['is_induced'] = 0  # Initialize to 0 (not induced)
 
+        phase_col = 'process_phase'
+        if phase_col not in df_out.columns:
+            logger.warning(f"Cannot add induction indicator: '{phase_col}' column not found.")
+            return df_out
+
+        # Get phase names from the *merged* config (defaults can be overridden)
+        induced_phases = self.config.get('processing', {}).get('induced_phases', [])
+        if not induced_phases:
+            logger.warning("No 'induced_phases' defined in config. 'is_induced' column will remain 0.")
+            return df_out
+
+        logger.info(f"Identifying induction start based on phases: {induced_phases}")
+
+        # Create mask for rows belonging to induced phases
+        is_induced_phase_mask = df_out[phase_col].isin(induced_phases)
+
+        # Find the first index where an induced phase occurs
+        induction_start_index = is_induced_phase_mask.idxmax()
+
+        # Check if any induced phase was actually found
+        # idxmax returns the first index if *no* True is found, so check the value at that index
+        if is_induced_phase_mask.any():  # Check if at least one True exists
+            logger.info(
+                f"Induction start detected at index {induction_start_index} (process_time: {df_out.loc[induction_start_index, 'process_time']:.2f}h)")
+            # Set indicator to 1 from the start index onwards
+            df_out.loc[induction_start_index:, 'is_induced'] = 1
+        else:
+            logger.info("No specified induction phases found in the data. 'is_induced' column remains 0.")
+
+        return df_out
+
+    # MODIFY THE process_data METHOD:
     def process_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Main processing method, ensuring correct order of operations."""
         if df is None or df.empty:
-             logger.error("Processor: Input DataFrame is None or empty.")
-             return pd.DataFrame()
+            logger.error("Processor: Input DataFrame is None or empty.")
+            return pd.DataFrame()
 
         processed_df = df.copy()
         logger.info("Starting data processing...")
@@ -328,6 +365,7 @@ class FermentationDataProcessor:
         processed_df = self._calculate_feed(processed_df)
         processed_df = self._calculate_base_flux_and_volume(processed_df)
         processed_df = self._calculate_volume(processed_df)
+        processed_df = self._add_induction_indicator(processed_df)  # <-- ADD THIS CALL
 
         logger.info("Data processing finished.")
         return processed_df

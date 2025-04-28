@@ -14,125 +14,159 @@ class DataAligner:
         self.online_time_col = config.get('online_time_col', 'process_time')
         self.offline_time_col = config.get('offline_time_col', 'process_time')
         self.tolerance_hours = config.get('tolerance_hours', 0.02)
-        logger.info(f"DataAligner initialized. Online time: '{self.online_time_col}', Offline time: '{self.offline_time_col}', Tolerance: {self.tolerance_hours}h")
+        self.force_align_last = config.get('force_align_last_sample', False)
+        logger.info(
+            f"DataAligner initialized. Online time: '{self.online_time_col}', "
+            f"Offline time: '{self.offline_time_col}', Tolerance: {self.tolerance_hours}h, "
+            f"Force align last: {self.force_align_last}"
+        )
 
     def merge_datasets(
         self,
         online_df: pd.DataFrame,
-        offline_df: pd.DataFrame
+        offline_df: Optional[pd.DataFrame]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Aligns online and offline datasets using pandas.merge_asof, ensuring only
-        the single best time match for each offline point is marked as a sample.
-
-        Args:
-            online_df: DataFrame with cleaned online measurements, MUST contain
-                       the numeric `online_time_col` and be sorted by it.
-            offline_df: DataFrame with parsed offline measurements, MUST contain
-                        the numeric `offline_time_col` and be sorted by it.
-
-        Returns:
-            tuple[pd.DataFrame, pd.DataFrame]:
-                - Merged DataFrame: Online data with offline data merged onto the
-                  single closest online time point row for each sample.
-                - Samples DataFrame: Rows corresponding to the unique offline samples.
+        Aligns online and offline datasets using pandas.merge_asof.
+        Optionally forces the last offline sample to align with the last online point.
         """
         logger.info("Starting data alignment...")
+        online_clean = online_df.copy()
+
+        if offline_df is None or offline_df.empty:
+            logger.info("No offline data provided or empty. Skipping alignment.")
+            online_clean['is_sample'] = False
+            return online_clean, pd.DataFrame(columns=online_clean.columns)
 
         # --- Input Validation and Preparation ---
-        if self.online_time_col not in online_df.columns:
-            msg = f"Online time column '{self.online_time_col}' not found in online data."
-            logger.error(msg); raise KeyError(msg)
-        if self.offline_time_col not in offline_df.columns:
-            msg = f"Offline time column '{self.offline_time_col}' not found in offline data."
-            logger.error(msg); raise KeyError(msg)
+        if self.online_time_col not in online_clean.columns or self.offline_time_col not in offline_df.columns:
+            raise KeyError(f"Required time columns ('{self.online_time_col}', '{self.offline_time_col}') not found.")
 
-        online_df[self.online_time_col] = pd.to_numeric(online_df[self.online_time_col], errors='coerce')
+        online_clean[self.online_time_col] = pd.to_numeric(online_clean[self.online_time_col], errors='coerce')
         offline_df[self.offline_time_col] = pd.to_numeric(offline_df[self.offline_time_col], errors='coerce')
 
-        online_clean = online_df.dropna(subset=[self.online_time_col]).copy()
-        offline_clean = offline_df.dropna(subset=[self.offline_time_col]).copy()
+        online_sorted = online_clean.dropna(subset=[self.online_time_col]).sort_values(by=self.online_time_col).reset_index(drop=True)
+        offline_sorted = offline_df.dropna(subset=[self.offline_time_col]).sort_values(by=self.offline_time_col).reset_index(drop=True)
 
-        if online_clean.empty or offline_clean.empty:
-            logger.warning("One or both dataframes are empty after handling NaN time values. Returning online data only.")
-            online_clean['is_sample'] = False
-            return online_clean, pd.DataFrame()
+        if online_sorted.empty or offline_sorted.empty:
+            logger.warning("Online or offline data empty after dropping NaN times.")
+            online_sorted['is_sample'] = False
+            return online_sorted, pd.DataFrame()
 
-        online_sorted = online_clean.sort_values(by=self.online_time_col).reset_index(drop=True)
-        offline_sorted = offline_clean.sort_values(by=self.offline_time_col).reset_index(drop=True)
-
-        # --- Explicitly Rename Offline Time Column BEFORE Merge ---
-        # This ensures it's preserved even if names are identical.
-        offline_time_col_temp = f"{self.offline_time_col}_offline_temp"
+        offline_time_col_temp = f"{self.offline_time_col}_offline_temp_merge"
         offline_renamed = offline_sorted.rename(columns={self.offline_time_col: offline_time_col_temp})
 
-        # --- Perform Merge ---
-        logger.info(f"Performing merge_asof on '{self.online_time_col}' / '{offline_time_col_temp}' with tolerance {self.tolerance_hours} hours.")
-        try:
-            merged_df = pd.merge_asof(
-                left=online_sorted.copy(), # Use copy to avoid modifying original if needed later
-                right=offline_renamed,
-                left_on=self.online_time_col,
-                right_on=offline_time_col_temp,
-                direction='nearest',
-                tolerance=pd.Timedelta(hours=self.tolerance_hours) if isinstance(online_sorted[self.online_time_col].iloc[0], pd.Timestamp) else self.tolerance_hours,
-                suffixes=('', '_offline') # Suffixes for any *other* overlapping columns
-            )
-        except Exception as e:
-             logger.error(f"Error during pd.merge_asof: {e}")
-             online_sorted['is_sample'] = False
-             return online_sorted, pd.DataFrame()
+        # --- Handle Last Sample ---
+        last_offline_sample_row = None
+        last_offline_time_val = None
+        offline_to_align = offline_renamed
 
-        # --- Post-Merge Deduplication ---
-        # Identify rows where a merge actually happened (the temp offline time column is not NaN)
-        merged_rows_mask = merged_df[offline_time_col_temp].notna()
+        if self.force_align_last and not offline_renamed.empty:
+            logger.info("Separating last offline sample for potential forced alignment.")
+            last_offline_sample_row = offline_renamed.iloc[-1:].copy()
+            last_offline_time_val = last_offline_sample_row[offline_time_col_temp].iloc[0] # Get its time
+            offline_to_align = offline_renamed.iloc[:-1]
+            if offline_to_align.empty:
+                logger.info("Only one offline sample; will try standard alignment first.")
+                offline_to_align = offline_renamed
+                last_offline_sample_row = None # Don't force yet
 
-        if not merged_rows_mask.any():
-            logger.warning("No offline samples could be matched within the tolerance.")
-            merged_df['is_sample'] = False
-            merged_df.drop(columns=[offline_time_col_temp], inplace=True, errors='ignore')
-            return merged_df, pd.DataFrame()
+        # --- Perform Standard Alignment ---
+        merged_df = online_sorted.copy()
+        # Add empty columns for offline data upfront
+        offline_cols_original = [col for col in offline_sorted.columns if col != self.offline_time_col]
+        for col in offline_cols_original:
+             if col not in merged_df.columns: merged_df[col] = pd.NA
 
-        # Calculate absolute time difference for merged rows
-        merged_df['time_diff'] = np.nan # Initialize column
-        merged_df.loc[merged_rows_mask, 'time_diff'] = abs(
-            merged_df.loc[merged_rows_mask, self.online_time_col] - merged_df.loc[merged_rows_mask, offline_time_col_temp]
-        )
+        best_match_indices = pd.Index([]) # Indices in merged_df/online_sorted
+        temp_merged = pd.DataFrame() # To store merge_asof result
 
-        # Find the index of the minimum time difference for each unique offline time point
-        # This gives the index in merged_df that is the *best* match for each offline sample
-        best_match_indices = merged_df.loc[merged_rows_mask].groupby(offline_time_col_temp)['time_diff'].idxmin()
+        if not offline_to_align.empty:
+            logger.info(f"Performing standard merge_asof on {len(offline_to_align)} sample(s).")
+            try:
+                temp_merged = pd.merge_asof(
+                    left=online_sorted.reset_index(), # Keep original index via reset_index
+                    right=offline_to_align,
+                    left_on=self.online_time_col,
+                    right_on=offline_time_col_temp,
+                    direction='nearest',
+                    tolerance=self.tolerance_hours,
+                    suffixes=('_online', '_offline')
+                )
 
-        # Create the 'is_sample' column, True only for the best matches
+                merged_rows_mask = temp_merged[offline_time_col_temp].notna()
+                if merged_rows_mask.any():
+                    temp_merged['time_diff'] = abs(
+                        temp_merged.loc[merged_rows_mask, self.online_time_col] - temp_merged.loc[merged_rows_mask, offline_time_col_temp]
+                    )
+                    best_match_temp_indices = temp_merged.loc[merged_rows_mask].groupby(offline_time_col_temp)['time_diff'].idxmin()
+                    best_match_indices = temp_merged.loc[best_match_temp_indices, 'index'].astype(int) # Original online indices
+
+                    # --- Update main merged_df ---
+                    offline_cols_to_update = [col for col in offline_to_align.columns if col != offline_time_col_temp]
+                    for temp_idx, original_idx in zip(best_match_temp_indices, best_match_indices):
+                        for col in offline_cols_to_update:
+                             source_col = col + '_offline' if col + '_offline' in temp_merged.columns else col
+                             if source_col in temp_merged.columns:
+                                 merged_df.loc[original_idx, col] = temp_merged.loc[temp_idx, source_col]
+
+                    sample_count_std = len(best_match_indices)
+                    logger.info(f"Standard alignment identified {sample_count_std} sample points.")
+                    if sample_count_std != len(offline_to_align):
+                         logger.warning(f"Std alignment count differs from offline points attempted.")
+                else:
+                     logger.info("No standard offline samples matched within tolerance.")
+            except Exception as e:
+                 logger.error(f"Error during standard pd.merge_asof: {e}")
+
+        # --- Force Align Last Sample ---
+        force_applied = False
+        if self.force_align_last and last_offline_sample_row is not None:
+            # --- CORRECTED CHECK: Check using temp_merged IF it was populated ---
+            already_matched = False
+            if not temp_merged.empty and not best_match_temp_indices.empty:
+                 # Check if the last offline time value exists among the successfully merged offline times in temp_merged
+                 matched_offline_times = temp_merged.loc[best_match_temp_indices, offline_time_col_temp].dropna()
+                 if not matched_offline_times.empty:
+                     already_matched = matched_offline_times.isin([last_offline_time_val]).any()
+            # --- END CORRECTED CHECK ---
+
+            if not already_matched:
+                last_online_index = online_sorted.index[-1]
+                logger.info(f"Forcing alignment of last offline sample (original time: {last_offline_time_val:.2f}h) to last online point (index {last_online_index}, time: {online_sorted.loc[last_online_index, self.online_time_col]:.2f}h).")
+
+                if last_online_index in best_match_indices:
+                    logger.warning(f"Last online row (index {last_online_index}) was already matched by a different standard sample. Overwriting with forced last sample.")
+
+                for col in offline_sorted.columns:
+                    if col == self.offline_time_col: continue
+                    source_col = col
+                    target_col = col
+                    if source_col in last_offline_sample_row.columns:
+                        if target_col not in merged_df.columns: merged_df[target_col] = pd.NA
+                        merged_df.loc[last_online_index, target_col] = last_offline_sample_row[source_col].iloc[0]
+                force_applied = True
+            else:
+                 logger.info("Last offline sample was already matched during standard alignment. No forced alignment needed.")
+
+
+        # --- Set Final 'is_sample' Column ---
         merged_df['is_sample'] = False
-        merged_df.loc[best_match_indices, 'is_sample'] = True
+        if not best_match_indices.empty:
+            merged_df.loc[best_match_indices, 'is_sample'] = True # Mark standard matches
+        if force_applied:
+            merged_df.loc[last_online_index, 'is_sample'] = True # Mark forced match
 
-        # Identify columns that came *only* from the offline dataframe (excluding time)
-        offline_original_cols = [col for col in offline_sorted.columns if col != self.offline_time_col]
-        # Identify columns in merged_df that correspond to these (might have _offline suffix if names clashed)
-        offline_cols_in_merged = [col for col in merged_df.columns if
-                                  col in offline_original_cols or col.replace('_offline', '') in offline_original_cols]
+        # --- Final Cleanup ---
+        # Drop only the temporary column if it exists (it won't if only forced align happened)
+        cols_to_drop = [offline_time_col_temp, 'time_diff', 'index']
+        merged_df.drop(columns=[c for c in cols_to_drop if c in merged_df.columns], inplace=True, errors='ignore')
 
-        # Create a mask for rows that are NOT the best match
-        not_best_match_mask = ~merged_df.index.isin(best_match_indices)
-
-        # Set offline columns to NaN for rows that are not the best match
-        if offline_cols_in_merged:
-            merged_df.loc[not_best_match_mask, offline_cols_in_merged] = np.nan
-            logger.info(f"Nulled offline data in {not_best_match_mask.sum()} non-best-match rows.")
-
-        # Create the samples_df using the corrected 'is_sample' flag
         samples_df = merged_df[merged_df['is_sample']].copy()
+        final_sample_count = len(samples_df)
+        logger.info(f"Alignment complete. Final identified sample points: {final_sample_count}.")
+        if final_sample_count != len(offline_sorted):
+             logger.warning(f"Final sample count ({final_sample_count}) differs from original offline rows ({len(offline_sorted)}).")
 
-        # Clean up temporary columns
-        merged_df.drop(columns=[offline_time_col_temp, 'time_diff'], inplace=True, errors='ignore')
-        # Also drop them from samples_df if they exist there
-        samples_df.drop(columns=[offline_time_col_temp, 'time_diff'], inplace=True, errors='ignore')
-
-        sample_count_final = merged_df['is_sample'].sum()
-        logger.info(f"Alignment refined. Identified {sample_count_final} unique sample points.")
-        if sample_count_final != len(offline_sorted):
-             logger.warning(f"Final sample count ({sample_count_final}) still differs from original offline rows ({len(offline_sorted)}). This might happen if multiple offline points map to the same closest online point, or some offline points had no match within tolerance.")
-
-        logger.info(f"Alignment complete. Merged data shape: {merged_df.shape}, Samples data shape: {samples_df.shape}")
+        logger.info(f"Final merged data shape: {merged_df.shape}, Samples data shape: {samples_df.shape}")
         return merged_df, samples_df

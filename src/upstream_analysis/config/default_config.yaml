@@ -76,8 +76,9 @@ cleaning:
 alignment:
   online_time_col: 'process_time'
   offline_time_col: 'process_time'
-  tolerance_hours: 0.02
+  tolerance_hours: 0.1
   save_separate_samples_file: true
+  force_align_last_sample: true
 
 processing:
   constants:

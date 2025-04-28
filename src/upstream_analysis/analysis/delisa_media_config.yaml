@@ -84,7 +84,6 @@ feed_1: # Use consistent naming ('feed_1', 'feed_2', etc.)
       formula: "MgSO4*7H2O"
       concentration_g_l: 20.00
       role: "Magnesium source"
-    # Add other feed components if needed for balancing/tracking
     fe_citrate:
       formula: "C6H5FeO7"
       concentration_g_l: 0.04000
