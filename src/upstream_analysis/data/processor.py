@@ -63,17 +63,16 @@ class FermentationDataProcessor:
 
         return value
 
-    # In class FermentationDataProcessor (processor.py)
-
-    # In class FermentationDataProcessor (processor.py)
-
     def _calculate_feed(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates cumulative feed added based on the DECREASE in balance readings
-        during specified feeding phases, identifying the tare point as the peak
-        balance value around the start of the first feeding phase.
+        Calculates cumulative feed added, assuming balance measures feed source.
+        1. Finds peak balance value around feed start.
+        2. Creates a modified balance series (peak extended backward).
+        3. Applies median filter to the modified balance series.
+        4. Calculates feed based on the filtered, modified balance.
+        5. Overwrites the original 'balance' column with the filtered, modified version.
         """
-        logger.info("Attempting to calculate feed (using peak balance as tare)...")
+        logger.info("Attempting to calculate feed (adjusting balance first)...")
         df_out = df.copy()
         df_out['feed_g'] = 0.0
         df_out['feed_ml'] = 0.0
@@ -82,10 +81,9 @@ class FermentationDataProcessor:
         phase_col = 'process_phase'
         time_col = 'process_time'
 
-        # --- Validate Inputs ---
+        # --- Validate Inputs & Config ---
         if not all(col in df_out.columns for col in [balance_col, phase_col, time_col]):
-            logger.warning(
-                f"Processor: Missing required columns ('{balance_col}', '{phase_col}', '{time_col}'). Cannot calculate feed.")
+            logger.warning(f"Processor: Missing required columns. Cannot calculate feed.")
             return df_out
 
         try:
@@ -93,15 +91,27 @@ class FermentationDataProcessor:
                 [self.processing_params_key, self.feed_def_key, 'feed_1', 'density_g_ml'],
                 expected_type=float, is_required=True
             )
+            # Get median filter settings
+            cleaning_config = self.config.get('cleaning', {})
+            apply_filter = cleaning_config.get('median_filter', True)
+            median_window = cleaning_config.get('median_filter_window', 10)
+            median_threshold = cleaning_config.get('median_filter_threshold', 10)
+
         except (ValueError, TypeError) as e:
-            logger.error(f"Cannot calculate feed: {e}")
+            logger.error(f"Cannot calculate feed due to config error: {e}")
             return df_out
 
-        df_out[balance_col] = pd.to_numeric(df_out[balance_col], errors='coerce')
-        # We need to handle NaNs, but DON'T fill with 0 yet, as we need the peak value.
-        if df_out[balance_col].isnull().all():
-            logger.warning("Processor: Balance column empty/all NaNs. Cannot calculate feed.")
+        balance_numeric = pd.to_numeric(df_out[balance_col], errors='coerce')
+        if balance_numeric.isnull().all():
+            logger.warning("Processor: Balance column empty/all NaN. Cannot calculate feed.")
             return df_out
+        balance_nan_mask = balance_numeric.isna()
+        balance_filled = balance_numeric.ffill()
+        first_valid_balance_idx = balance_filled.first_valid_index()
+        if first_valid_balance_idx is not None:
+            balance_filled.fillna(balance_filled[first_valid_balance_idx], inplace=True)
+        else:
+            balance_filled.fillna(0, inplace=True)
 
         # --- Identify Start of FIRST Feeding Phase ---
         feeding_phases = ['Fedbatch', 'induced Fedbatch']
@@ -112,55 +122,80 @@ class FermentationDataProcessor:
             return df_out
 
         first_feed_index = df_out[feeding_phases_mask].index[0]
-        first_feed_time = df_out.loc[first_feed_index, time_col]
-        logger.info(
-            f"First feeding phase ('{df_out.loc[first_feed_index, phase_col]}') starts at index: {first_feed_index} (time: {first_feed_time:.2f}h)")
+        logger.info(f"First feeding phase starts at index: {first_feed_index}")
 
-        # --- Find Initial Feed Weight (Tare Point = Peak Balance Near Start) ---
-        # Look for the max balance value in a small window around the feed start
-        # Define a window (e.g., +/- 5 points, adjust if needed)
-        window_size = 5
-        start_search_loc = max(0, df_out.index.get_loc(first_feed_index) - window_size)
-        end_search_loc = min(len(df_out), df_out.index.get_loc(first_feed_index) + window_size + 1)
-        search_indices = df_out.index[start_search_loc:end_search_loc]
-
-        balance_window = df_out.loc[search_indices, balance_col].dropna()
+        # --- Find Initial Feed Weight ---
+        time_window_h = 4.0
+        end_window_time = df_out.loc[first_feed_index, time_col] + time_window_h
+        window_mask = (df_out[time_col] >= df_out.loc[first_feed_index, time_col]) & \
+                      (df_out[time_col] <= end_window_time)
+        balance_window = balance_filled[window_mask].dropna()
 
         if balance_window.empty:
-            logger.error(f"Cannot find any valid balance readings around feed start index {first_feed_index}.")
-            return df_out
+            logger.error(f"Cannot find valid balance readings in window after feed start.")
+            balance_at_tare_point = balance_filled.loc[first_feed_index]  # Fallback
+            if pd.isna(balance_at_tare_point):
+                logger.error("Balance at feed start is also NaN. Cannot determine tare point.")
+                return df_out
+            tare_index_approx = first_feed_index
+            logger.warning(f"Using balance at feed start {balance_at_tare_point:.2f}g as fallback tare.")
+        else:
+            balance_at_tare_point = balance_window.max()
+            tare_index_approx = balance_window.idxmax()
+            logger.info(
+                f"Using peak balance {balance_at_tare_point:.2f}g (near index {tare_index_approx}) as initial feed weight.")
 
-        # The tare point is the maximum value in this window
-        balance_at_feed_start = balance_window.max()
-        tare_index_approx = balance_window.idxmax()  # Index where max occurred
+        # --- Create Modified Balance Series ---
+        modified_balance = balance_filled.copy()
+        modified_balance.loc[modified_balance.index < tare_index_approx] = balance_at_tare_point
+        modified_balance = modified_balance.ffill().fillna(balance_at_tare_point)  # Ensure full series
 
-        logger.info(
-            f"Using peak balance value {balance_at_feed_start:.2f}g (found near index {tare_index_approx}) as initial feed weight reference.")
+        # --- Apply Median Filter to Modified Balance ---
+        if apply_filter:
+            logger.info(
+                f"Applying median filter (window={median_window}, threshold={median_threshold}) to modified balance.")
+            median_values = modified_balance.rolling(window=median_window, center=True, min_periods=1).median()
+            diff = np.abs(modified_balance - median_values)
+
+            # --- *** CORRECTED MAD CALCULATION *** ---
+            # Use numpy's median function for the rolling apply with raw=True
+            mad = (diff.rolling(window=median_window, center=True, min_periods=1)
+                   .apply(np.median, raw=True)) * 1.4826  # Use np.median
+            # --- *** END CORRECTION *** ---
+
+            mad.replace(0, np.nan, inplace=True)
+            mask = (diff > median_threshold * mad) & mad.notna()
+            spikes_found = mask.sum()
+            if spikes_found > 0:
+                filtered_modified_balance = modified_balance.copy()
+                filtered_modified_balance[mask] = median_values[mask]
+                logger.info(f"Replaced {spikes_found} spikes in modified balance data.")
+            else:
+                filtered_modified_balance = modified_balance
+                logger.info("No significant spikes detected in modified balance data.")
+        else:
+            logger.info("Median filter disabled in config, skipping filter step.")
+            filtered_modified_balance = modified_balance
+
+        # --- Overwrite original balance column ---
+        df_out[balance_col] = filtered_modified_balance
+        logger.debug(f"Final filtered, modified balance assigned (Tail):\n{df_out[balance_col].tail()}")
 
         # --- Calculate Feed Added ---
-        # Feed added = Initial feed weight - Current feed weight
-        # Handle NaNs in balance *after* finding the tare point
-        balance_filled = df_out[balance_col].ffill().fillna(
-            balance_at_feed_start)  # Fill NaNs with preceding value or tare
-        feed_diff = balance_at_feed_start - balance_filled
-
-        # Apply calculation only FROM the feed start index onwards
+        feed_diff = balance_at_tare_point - df_out[balance_col]
         feed_g_series = feed_diff.loc[df_out.index >= first_feed_index].copy()
-
-        # Clip negative values & ensure monotonicity with cummax
         feed_g_series_clipped = feed_g_series.clip(lower=0)
-        nan_mask_feed = feed_g_series_clipped.isna()  # Should be few/no NaNs now
+        nan_mask_feed = feed_g_series_clipped.isna()
         feed_g_filled_for_cummax = feed_g_series_clipped.ffill().fillna(0)
         feed_g_cummax = feed_g_filled_for_cummax.cummax()
-        feed_g_cummax[nan_mask_feed] = np.nan  # Restore original NaNs if any
-
-        # Assign the cumulative max value back
+        feed_g_cummax[nan_mask_feed] = np.nan
         df_out.loc[df_out.index >= first_feed_index, 'feed_g'] = feed_g_cummax
+        df_out.loc[balance_nan_mask, 'feed_g'] = np.nan  # Restore NaNs from original balance
 
         # Calculate feed_ml
         df_out['feed_ml'] = df_out['feed_g'] / feed_density
-        logger.info(f"Processor: Calculated feed_g and feed_ml (density {feed_density} g/mL).")
-        logger.debug(f"Feed_g calculated (Tail):\n{df_out['feed_g'].tail()}")
+        logger.info(f"Processor: Calculated feed_g and feed_ml.")
+        logger.debug(f"Final feed_g calculated (Tail):\n{df_out['feed_g'].tail()}")
 
         return df_out
 
@@ -375,6 +410,82 @@ class FermentationDataProcessor:
 
         return df_out
 
+    def _calculate_protein_parameters(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculates derived protein parameters including total protein, soluble fraction, etc.
+        Always creates both soluble and IB columns, filling with zeros when missing from original data.
+        """
+        logger.info("Calculating protein-derived parameters...")
+        df_out = df.copy()
+
+        # Check what protein columns are available in the ORIGINAL data
+        orig_has_soluble = 'protein_soluble_g_L' in df_out.columns
+        orig_has_ib = 'IB_g_l' in df_out.columns
+        orig_has_total = 'protein_g_l' in df_out.columns
+
+        logger.info(f"Original protein data - Soluble: {orig_has_soluble}, IB: {orig_has_ib}, Total: {orig_has_total}")
+
+        # Always create both protein columns, filling missing ones with zeros
+        if not orig_has_soluble:
+            df_out['protein_soluble_g_L'] = 0.0
+            logger.info("Created soluble protein column (filled with zeros - not present in original data).")
+        if not orig_has_ib:
+            df_out['IB_g_l'] = 0.0
+            logger.info("Created IB protein column (filled with zeros - not present in original data).")
+
+        # Calculate total protein based on ORIGINAL data availability
+        if not orig_has_total:
+            if orig_has_soluble and orig_has_ib:
+                # Both soluble and IB present in original data
+                df_out['protein_total_calculated_g_l'] = df_out['protein_soluble_g_L'].fillna(0) + df_out['IB_g_l'].fillna(0)
+                logger.info("Calculated total protein from soluble + IB fractions.")
+            elif orig_has_soluble and not orig_has_ib:
+                # Only soluble present in original data
+                df_out['protein_total_calculated_g_l'] = df_out['protein_soluble_g_L']
+                logger.info("Using soluble protein as total protein (no IB data available).")
+            elif orig_has_ib and not orig_has_soluble:
+                # Only IB present in original data
+                df_out['protein_total_calculated_g_l'] = df_out['IB_g_l']
+                logger.info("Using IB protein as total protein (no soluble data available).")
+            else:
+                # Neither soluble nor IB present - no protein data to calculate
+                logger.info("No protein data available in original data.")
+
+        # Calculate soluble fraction (%) if soluble protein is available in original data
+        if orig_has_soluble:
+            if orig_has_total:
+                df_out['soluble_fraction_pct'] = (df_out['protein_soluble_g_L'] / df_out['protein_g_l'].replace(0, np.nan)) * 100
+                logger.info("Calculated soluble fraction from measured total protein.")
+            elif 'protein_total_calculated_g_l' in df_out.columns:
+                df_out['soluble_fraction_pct'] = (df_out['protein_soluble_g_L'] / df_out['protein_total_calculated_g_l'].replace(0, np.nan)) * 100
+                logger.info("Calculated soluble fraction from calculated total protein.")
+
+        # Calculate IB fraction (%) if IB protein is available in original data
+        if orig_has_ib:
+            if orig_has_total:
+                df_out['IB_fraction_pct'] = (df_out['IB_g_l'] / df_out['protein_g_l'].replace(0, np.nan)) * 100
+                logger.info("Calculated IB fraction from measured total protein.")
+            elif 'protein_total_calculated_g_l' in df_out.columns:
+                df_out['IB_fraction_pct'] = (df_out['IB_g_l'] / df_out['protein_total_calculated_g_l'].replace(0, np.nan)) * 100
+                logger.info("Calculated IB fraction from calculated total protein.")
+
+        # Calculate protein yields if biomass is available
+        if 'biomass_g_l' in df_out.columns:
+            if orig_has_soluble:
+                df_out['protein_soluble_yield_g_g'] = df_out['protein_soluble_g_L'] / df_out['biomass_g_l'].replace(0, np.nan)
+                logger.info("Calculated soluble protein yield (g protein / g biomass).")
+            if orig_has_ib:
+                df_out['protein_IB_yield_g_g'] = df_out['IB_g_l'] / df_out['biomass_g_l'].replace(0, np.nan)
+                logger.info("Calculated IB protein yield (g protein / g biomass).")
+            if orig_has_total:
+                df_out['protein_total_yield_g_g'] = df_out['protein_g_l'] / df_out['biomass_g_l'].replace(0, np.nan)
+                logger.info("Calculated total protein yield (g protein / g biomass).")
+            elif 'protein_total_calculated_g_l' in df_out.columns:
+                df_out['protein_total_yield_g_g'] = df_out['protein_total_calculated_g_l'] / df_out['biomass_g_l'].replace(0, np.nan)
+                logger.info("Calculated total protein yield from calculated total protein.")
+
+        return df_out
+
     # MODIFY THE process_data METHOD:
     def process_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Main processing method, ensuring correct order of operations."""
@@ -389,6 +500,7 @@ class FermentationDataProcessor:
         processed_df = self._calculate_base_flux_and_volume(processed_df)
         processed_df = self._calculate_volume(processed_df)
         processed_df = self._add_induction_indicator(processed_df)  # <-- ADD THIS CALL
+        processed_df = self._calculate_protein_parameters(processed_df)  # <-- ADD THIS CALL
 
         logger.info("Data processing finished.")
         return processed_df

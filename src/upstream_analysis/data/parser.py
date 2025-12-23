@@ -95,18 +95,27 @@ class BioreactorDataParser:
         return result_df
 
     def parse_file(self, file_path: Union[str, Path]) -> pd.DataFrame:
-        """Parse online bioreactor data file."""
+        """Parse online bioreactor data file (CSV or Excel)."""
         file_path = Path(file_path)
         logger.info(f"Parsing online data: {file_path}")
         try:
-            df = pd.read_csv(
-                file_path,
-                sep=self.separator,
-                decimal=self.decimal,
-                skiprows=self.skiprows,
-                encoding=self.encoding, # Use the encoding attribute
-                low_memory=False
-            )
+            if file_path.suffix.lower() == '.csv':
+                # Parse CSV file
+                df = pd.read_csv(
+                    file_path,
+                    sep=self.separator,
+                    decimal=self.decimal,
+                    skiprows=self.skiprows,
+                    encoding=self.encoding,
+                    low_memory=False
+                )
+            elif file_path.suffix.lower() in ['.xlsx', '.xls']:
+                # Parse Excel file - use first sheet
+                df = pd.read_excel(file_path, sheet_name=0, header=self.skiprows)
+                logger.info(f"Reading Excel online data file, using first sheet")
+            else:
+                raise ValueError(f"Unsupported online data file format: {file_path.suffix}")
+
             df = self._rename_columns(df)
             df = self._process_dataframe(df)
             logger.info(f"Parsed online data: {df.shape[0]} rows, {df.shape[1]} columns.")

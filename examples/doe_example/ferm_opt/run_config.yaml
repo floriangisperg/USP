@@ -26,7 +26,7 @@ metadata:
 processing_parameters:
 
   reactor_setup:
-    initial_volume_ml: 1000.0
+    initial_volume_ml: 1100.0
 
   gas_params: # REQUIRED: Inlet gas and physical properties for THIS run
     inlet_o2_mol_pct: 21.0          # Inlet O2 % (mol/mol)

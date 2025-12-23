@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # <<< --- CONFIGURE THE RUN TO ANALYZE HERE --- >>>
 # ==================================================
 # 1. Specify the name of the run folder inside 'doe_example'
-target_run_folder_name: str = "ferm_03" # e.g., "run_01", "ferm_opt", "center_point"
+target_run_folder_name: str = "ferm_12" # e.g., "run_01", "ferm_opt", "center_point"
 
 # 2. Specify the exact filenames for the data files within that run's 'data' subfolder
 # online_data_filename: str = "20240131_CDL_scFv_DoE_ferm_opt.csv" # <--- SET YOUR FILENAME
@@ -162,7 +162,9 @@ try:
         'balance', 'analog_io1', 'analog_io2', 'ph', 'po2',
         'offgas_co2', 'offgas_o2', 'od600_online', 'feedrate_exp',
         'feedrate_ind', 'od600', 'glucose_g_l', 'acetate_g_l',
-        'protein_g_l', 'biomass_g_l', 'viability_pct', 'sample_volume_ml',
+        'protein_g_l', 'protein_soluble_g_L', 'IB_g_l', 'protein_total_calculated_g_l',
+        'soluble_fraction_pct', 'IB_fraction_pct', 'protein_soluble_yield_g_g',
+        'protein_IB_yield_g_g', 'protein_total_yield_g_g', 'biomass_g_l', 'viability_pct', 'sample_volume_ml',
         'feed_g', 'feed_ml', 'base_volume_added_ml', 'volume_ml',
         'cumulative_sample_volume_ml', 'volume_corrected_ml',
         'is_induced' # Plot the new indicator

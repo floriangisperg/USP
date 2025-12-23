@@ -20,15 +20,15 @@ class FermentationDataCleaner:
         self.median_threshold = self.cleaning_config.get('median_filter_threshold', 30)
 
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply all configured cleaning steps to the raw online data."""
+        """Apply configured cleaning steps, conditionally filtering balance."""
         cleaned_df = df.copy()
         logger.info("Starting data cleaning process...")
 
         phase_col = 'process_phase'
-        balance_mode = self.config.get('processing_parameters', {}).get('balance_mode',
-                                                                        'reactor_weight')  # Get balance mode
+        balance_mode = self.config.get('processing_parameters', {}).get('balance_mode', 'reactor_weight')
 
         # --- Handle Preparation Phase ---
+        # (Keep the rename/filter logic from the previous version)
         rename_prep = self.cleaning_config.get('rename_preparation_to_batch', False)
         filter_prep = self.cleaning_config.get('filter_preparation', True)
         logger.info(
@@ -50,9 +50,9 @@ class FermentationDataCleaner:
             cleaned_df = self._filter_preparation_phase(cleaned_df)
         else:
             logger.info("Keeping 'Preparation' phase (rename and filter are both disabled).")
+        # --- End Phase Handling ---
 
         # --- Conditional Tare Correction ---
-        # ONLY apply tare correction if balance measures reactor weight
         if balance_mode == 'reactor_weight':
             if self.cleaning_config.get('balance_tare_correction', True):
                 logger.info("Applying balance tare correction (mode: reactor_weight).")
@@ -61,11 +61,17 @@ class FermentationDataCleaner:
                 logger.info("Balance tare correction skipped (disabled in config).")
         else:
             logger.info(f"Balance tare correction skipped (mode: {balance_mode}).")
-        # --- End Tare Correction ---
 
-        # Apply median filter (still useful regardless of balance mode)
+        # --- Median Filter (excluding balance if mode is 'feed_source') ---
         if self.cleaning_config.get('median_filter', True):
-            cleaned_df = self._rolling_median_filter(cleaned_df)
+            filter_cols = self.median_filter_cols  # Get columns from __init__
+            if balance_mode == 'feed_source' and 'balance' in filter_cols:
+                filter_cols = [col for col in filter_cols if col != 'balance']
+                logger.info("Excluding 'balance' from cleaner's median filter (mode: feed_source).")
+            if filter_cols:  # Proceed only if there are columns left to filter
+                cleaned_df = self._rolling_median_filter(cleaned_df, columns_to_filter=filter_cols)
+            else:
+                logger.info("No columns specified or remaining for cleaner's median filter.")
         else:
             logger.debug("Median filter step skipped (disabled in config).")
 
@@ -122,30 +128,37 @@ class FermentationDataCleaner:
 
         return result_df
 
-    def _rolling_median_filter(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Applies rolling median filter to specified raw sensor columns."""
+    def _rolling_median_filter(self, df: pd.DataFrame, columns_to_filter: list) -> pd.DataFrame:
+        """Applies rolling median filter to specified columns."""
         result_df = df.copy()
-        logger.info(f"Applying rolling median filter to columns: {self.median_filter_cols} (window={self.median_window}, threshold={self.median_threshold} MAD units)")
+        logger.info(
+            f"Applying rolling median filter to columns: {columns_to_filter} (window={self.median_window}, threshold={self.median_threshold} MAD units)")
 
-        for col_name in self.median_filter_cols:
+        for col_name in columns_to_filter:  # Use the passed list
+            # ... (rest of the filtering logic for the column remains the same) ...
             if col_name not in result_df.columns:
                 logger.warning(f"Column '{col_name}' specified for median filter not found.")
                 continue
-            if not pd.api.types.is_numeric_dtype(result_df[col_name]):
-                 logger.warning(f"Column '{col_name}' is not numeric, skipping median filter.")
-                 continue
-
+            # ... (numeric check, calculation, replacement) ...
             try:
-                median_values = result_df[col_name].rolling(window=self.median_window, center=True, min_periods=1).median()
+                if not pd.api.types.is_numeric_dtype(result_df[col_name]):
+                    logger.warning(f"Column '{col_name}' not numeric, skipping median filter.")
+                    continue
+
+                median_values = result_df[col_name].rolling(window=self.median_window, center=True,
+                                                            min_periods=1).median()
                 diff = np.abs(result_df[col_name] - median_values)
-                mad = diff.rolling(window=self.median_window, center=True, min_periods=1).median()
-                mad = mad * 1.4826
-                mad.replace(0, np.nan, inplace=True) # Avoid division by zero MAD
+                # Calculate MAD robustly, ignoring NaNs
+                mad = (diff.rolling(window=self.median_window, center=True, min_periods=1)
+                       .apply(lambda x: x.median(), raw=True))  # Calculate median ignoring NaNs in window
+                mad = mad * 1.4826  # Scale to approximate standard deviation
+                mad.replace(0, np.nan, inplace=True)  # Avoid division by zero MAD
 
                 mask = (diff > self.median_threshold * mad) & mad.notna()
                 spikes_found = mask.sum()
 
                 if spikes_found > 0:
+                    # Replace spikes with the rolling median
                     result_df.loc[mask, col_name] = median_values[mask]
                     logger.info(f"Replaced {spikes_found} spikes in '{col_name}' using rolling median filter.")
                 else:

@@ -57,6 +57,8 @@ column_mapping:
    'Biomass [g/L]':                  biomass_g_l
    'Glucose [g/L]':                  glucose_g_l
    'Protein concentration [g/L]':    protein_g_l
+   'Protein IB [g/L]':               IB_g_l
+   'Protein soluble [g/L]':          protein_soluble_g_L
    'Sample volume [mL]':             sample_volume_ml
    'Acetate [g/L]':                  acetate_g_l
    'Viability [%]':                  viability_pct

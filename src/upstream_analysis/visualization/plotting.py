@@ -60,18 +60,20 @@ class DataVisualizer:
 
             fig, ax = plt.subplots(figsize=(10, 5)) # Create a new figure for each plot
 
-            # Check if it looks like an offline measurement (many NaNs)
+            # Check if it looks like an offline measurement (many NaNs) or is a calculated protein parameter
             # Heuristic: if more than 75% are NaN, plot as scatter/markers
+            # Also plot calculated protein parameters as scatter since they're derived from offline measurements
             is_likely_offline = param_data.isnull().sum() / len(param_data) > 0.75
+            is_calculated_protein = any(x in param.lower() for x in ['total_calculated', 'yield', 'fraction'])
 
             try:
-                if is_likely_offline:
-                    # Plot only non-NaN points for sparse offline data
+                if is_likely_offline or is_calculated_protein:
+                    # Plot only non-NaN points for sparse offline data or calculated protein parameters
                     valid_mask = param_data.notna()
                     if valid_mask.any():
                         ax.plot(time_data[valid_mask], param_data[valid_mask],
                                 marker='o', linestyle='--', markersize=5, label=param)
-                        logger.debug(f"Plotting '{param}' as sparse (offline) data.")
+                        logger.debug(f"Plotting '{param}' as sparse (offline/calculated protein) data.")
                     else:
                          logger.info(f"Parameter '{param}' has no valid data points despite not being all NaNs. Skipping plot.")
                          plt.close(fig)
