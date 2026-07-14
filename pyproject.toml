@@ -1,26 +1,33 @@
 [build-system]
-requires = ["setuptools>=42.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "USP"
 version = "0.1.0"
-description = "Analysis tools for E. coli fermentation data"
+description = "Analysis tools for E. coli fermentation (upstream processing) data"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
+authors = [{ name = "Florian Gisperg" }]
+keywords = ["fermentation", "bioprocess", "E. coli", "upstream-processing", "bioreactor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
 dependencies = [
     "numpy",
     "pandas",
-    "matplotlib==3.9.0",
+    "matplotlib>=3.9",
     "seaborn",
     "scipy",
-    "pytest",
-    "openpyxl", # For reading .xlsx offline files
-    "PyYAML", # Added for config loading
-    "catalax",
-    "pandas-stubs==2.3.3.251219",
-    "cma", # CMA-ES optimizer for parameter fitting
+    "openpyxl",   # reading .xlsx offline sample files
+    "PyYAML",     # config loading
 ]
 
 [project.optional-dependencies]
@@ -30,4 +37,29 @@ dev = [
     "black>=21.5b2",
     "isort>=5.9.1",
     "flake8>=3.9.2",
+    "pandas-stubs>=2.3",
 ]
+modeling = [
+    "cma",        # CMA-ES optimizer for parameter fitting
+    "catalax",    # mechanistic modeling (used in modeling_playground)
+]
+
+[project.urls]
+Homepage = "https://github.com/floriangisperg/USP"
+Documentation = "https://github.com/floriangisperg/USP#readme"
+Issues = "https://github.com/floriangisperg/USP/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 88

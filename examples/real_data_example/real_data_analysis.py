@@ -15,8 +15,8 @@ from upstream_analysis import (
     FermentationDataCleaner,
     DataAligner
 )
-# --- Import the Processor ---
 from upstream_analysis.data.processor import FermentationDataProcessor
+from upstream_analysis.visualization.plotting import DataVisualizer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -124,6 +124,27 @@ try:
         logger.info(f"Saved sample points data to {samples_output_path}")
     else:
         logger.info("No sample points data to save.")
+
+    # --- Generate Plots ---
+    logger.info("Generating plots...")
+    visualizer = DataVisualizer(output_dir)
+
+    # Define parameters to plot
+    parameters_to_plot = [
+        'Balance [g]', 'Feed [g]', 'Feed [mL]',
+        'Volume [mL]', 'Volume corrected [mL]',
+        'Biomass [g/L]', 'Glucose [g/L]',
+        'Protein [g/L]', 'Protein total calculated [g/L]',
+        'Protein soluble [g/L]', 'Protein IB [g/L]',
+        'CER [mmol/L/h]', 'OUR [mmol/L/h]', 'RQ [-]',
+        'qO2 [mmol/g/h]', 'qCO2 [mmol/g/h]',
+        'Base volume added [mL]',
+        'Is induced [-]', 'Induction time [h]'
+    ]
+
+    # Use the correct time column name
+    visualizer.plot_selected_parameters(df_processed, parameters_to_plot, time_col='Process time [h]')
+    logger.info(f"Plots saved to {output_dir}")
 
 except Exception as e:
     logger.error(f"An error occurred during the script execution: {e}", exc_info=True)

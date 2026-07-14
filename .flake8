@@ -1,0 +1,14 @@
+[flake8]
+# Keep in sync with [tool.black] line-length in pyproject.toml
+max-line-length = 88
+# E203 / W503: conflicts with black's slicing and line-break style
+extend-ignore = E203, W503
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    modeling_playground

@@ -788,23 +788,32 @@ class FermentationDataProcessor:
             logger.info("Created IB protein column (filled with NaNs - not present in original data).")
 
         # Calculate total protein based on ORIGINAL data availability
-        if not orig_has_total:
-            if orig_has_soluble and orig_has_ib:
-                # Both soluble and IB present in original data
-                df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]'] + df_out['Protein IB [g/L]']
-                logger.info("Calculated total protein from soluble + IB fractions.")
-            elif orig_has_soluble and not orig_has_ib:
-                # Only soluble present in original data
-                df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]']
-                logger.info("Using soluble protein as total protein (no IB data available).")
-            elif orig_has_ib and not orig_has_soluble:
-                # Only IB present in original data
-                df_out['Protein total calculated [g/L]'] = df_out['Protein IB [g/L]']
-                logger.info("Using IB protein as total protein (no soluble data available).")
-            else:
-                # Neither soluble nor IB present - no protein data to calculate
-                df_out['Protein total calculated [g/L]'] = np.nan
-                logger.info("No protein data available in original data.")
+        # Always create calculated total to show sparse measurement points
+        if orig_has_soluble and orig_has_ib:
+            # Both soluble and IB present in original data
+            df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]'] + df_out['Protein IB [g/L]']
+            logger.info("Calculated total protein from soluble + IB fractions.")
+        elif orig_has_soluble and not orig_has_ib:
+            # Only soluble present in original data
+            df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]']
+            logger.info("Using soluble protein as total protein (no IB data available).")
+        elif orig_has_ib and not orig_has_soluble:
+            # Only IB present in original data
+            df_out['Protein total calculated [g/L]'] = df_out['Protein IB [g/L]']
+            logger.info("Using IB protein as total protein (no soluble data available).")
+        else:
+            # Neither soluble nor IB present - no protein data to calculate
+            df_out['Protein total calculated [g/L]'] = np.nan
+            logger.info("No protein data available in original data.")
+
+        # CRITICAL FIX: Mask the calculated total protein to only show values at sample points
+        # This prevents the plot from showing continuous data between actual measurements
+        if 'Protein total calculated [g/L]' in df_out.columns and 'is_sample' in df_out.columns:
+            # Create a mask for sample rows
+            is_sample_mask = df_out['is_sample'].fillna(False).astype(bool)
+            # Set non-sample rows to NaN
+            df_out.loc[~is_sample_mask, 'Protein total calculated [g/L]'] = np.nan
+            logger.info("Masked Protein total calculated [g/L] to show only sample points.")
 
         # Calculate soluble fraction (%) if soluble protein is available in original data
         if orig_has_soluble:
