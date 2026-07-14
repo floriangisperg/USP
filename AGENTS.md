@@ -1,103 +1,165 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (and human contributors) working in this repository.
+Start here for an overview; the user-facing README is [`README.md`](README.md).
 
 ## Project Overview
 
-USP (Upstream Processing) is a Python package for analyzing E. coli fermentation data. It processes bioreactor sensor data (online) and laboratory measurements (offline) to calculate derived parameters like feed rates, volume changes, and induction states.
+USP (Upstream Processing) is a Python package for analyzing **E. coli
+fermentation data**. It processes bioreactor sensor data (online, CSV) and
+laboratory measurements (offline, Excel) to calculate derived parameters like
+feed rates, reactor volume, gas-exchange rates, carbon balance, and induction
+states. Python ≥ 3.12.
 
 ## Common Development Commands
 
 ### Environment Setup
 
-```bash
-# Install package in development mode
-pip install -e .
+The project uses [uv](https://docs.astral.sh/uv/) (`uv.lock` is committed for
+reproducibility):
 
-# Install development dependencies
-pip install -e ".[dev]"
+```bash
+uv sync                       # create env + install from uv.lock (recommended)
+uv pip install -e ".[dev]"    # editable install with dev tools
+```
+
+Plain pip fallback:
+
+```bash
+pip install -e ".[dev]"       # runtime + dev deps
+pip install -e ".[modeling]"  # adds cma + catalax (parameter fitting only)
 ```
 
 ### Running Examples
 
 ```bash
-# Analyze a specific fermentation run (modify target_run_folder_name in script first)
-cd examples/doe_example
-python analyze_doe_run.py
-
-# Real data analysis example
+# Real-data example — self-contained, ships its own data/ and is runnable as-is
 cd examples/real_data_example
 python real_data_analysis.py
+
+# DOE example — analyze a specific fermentation run
+cd examples/doe_example
+python analyze_doe_run.py
+```
+
+Each example writes `processed_data.csv`, `samples_points_data.csv`, and
+overview plots to a run-specific `results/` directory.
+
+### Testing
+
+```bash
+pytest                        # full suite (116 tests)
+pytest tests/unit             # per-module unit tests only
+pytest --cov=upstream_analysis
+```
+
+Tests use **in-memory fixtures** (no external data files required), defined in
+`tests/conftest.py`. Layout:
+
+```
+tests/
+├── conftest.py              # shared fixtures (configs, sample DataFrames)
+├── fixtures/                # static config fixtures
+├── unit/                    # test_parser, test_cleaning, test_alignment,
+│                            #   test_processor, test_visualization
+└── integration/             # test_full_pipeline (end-to-end)
 ```
 
 ### Code Quality
 
 ```bash
-# Format code with black
-black src/ examples/
-
-# Sort imports with isort
-isort src/ examples/
-
-# Lint with flake8
-flake8 src/ examples/
-
-# Run tests (when available)
-pytest
+black src/ tests/ examples/
+isort src/ tests/ examples/
+flake8 src/ tests/ examples/
 ```
+
+Configuration: `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]` in
+`pyproject.toml`; flake8 in `.flake8` (line-length 88, black-compatible).
 
 ## Architecture Overview
 
-The package follows a modular pipeline architecture with distinct processing stages:
+Modular pipeline; each stage takes the merged config and returns a DataFrame.
 
 ### Core Processing Pipeline
 
-1. **Parsing** (`data/parser.py`) - Raw data ingestion from CSV (bioreactor) and Excel (offline samples)
-2. **Cleaning** (`data/cleaning.py`) - Data quality improvements, spike removal, time calculation
-3. **Alignment** (`data/alignment.py`) - Merging online and offline datasets by time
-4. **Processing** (`data/processor.py`) - Calculating derived parameters (feed, volume, induction)
-5. **Visualization** (`visualization/plotting.py`) - Generating overview plots
+1. **Parsing** (`data/parser.py`) — raw data ingestion from CSV (bioreactor)
+   and Excel (offline samples), via `BioreactorDataParser` /
+   `OfflineMeasurementsParser`.
+2. **Cleaning** (`data/cleaning.py`) — phase filtering, balance tare
+   correction, median filtering, process-time calculation
+   (`FermentationDataCleaner`).
+3. **Alignment** (`data/alignment.py`) — temporal merge of online + offline
+   data (`DataAligner.merge_datasets` → `(df_merged, df_samples)`).
+4. **Processing** (`data/processor.py`) — derived parameters: feed, base,
+   volume, induction, protein, off-gas rates (CER/OUR/RQ), specific rates,
+   carbon balance, growth/product yields (`FermentationDataProcessor`).
+5. **Visualization** (`visualization/plotting.py`) — per-parameter time-series
+   plots (`DataVisualizer.plot_selected_parameters`).
+
+Supporting layers under `core/`:
+
+- `core/constants.py` — centralized physical constants (molar volumes, molar
+  masses, process defaults). No magic numbers in calculations.
+- `core/validation.py` — DataFrame/column/numeric/config validators.
+- `core/exceptions.py` — `USPError` hierarchy: `USPConfigError`,
+  `USPDataError`, `USPCalculationError`.
+
+> Note: `data/processor.py` is the largest module (~1900 lines, one class with
+> ~15 calculation methods). A future refactor could split it into focused
+> submodules (feed, gas exchange, volume, induction, rates/yields, carbon
+> balance) — the test suite is the safety net for that.
 
 ### Configuration System
 
 - **Default config**: [`src/upstream_analysis/config/default_config.yaml`](src/upstream_analysis/config/default_config.yaml)
-- **Experiment configs**: Run-specific YAML files in example directories (e.g., `run_config.yaml`)
-- **Merging**: Experiment configs override defaults via hierarchical merging in [`config/loader.py`](src/upstream_analysis/config/loader.py:13)
+- **Run configs**: run-specific YAML in example directories (`run_config.yaml`)
+- **Merging**: experiment configs override defaults via hierarchical merge in
+  [`config/loader.py`](src/upstream_analysis/config/loader.py) (`load_config`)
+
+Top-level sections: `parsing`, `column_mapping`, `cleaning`, `alignment`,
+`processing`, `analysis`, `visualization` (last two are placeholders). Full
+parameter reference in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 ### Data Flow
 
-- Raw data files → Parsers → Cleaner → Aligner → Processor → Visualizer → CSV results
-- Each component takes the merged config and returns processed DataFrames
-- Final output includes `processed_data.csv` and `samples_points_data.csv` in run-specific `results/` directories
+```
+raw files → Parser → Cleaner → Aligner → Processor → Visualizer → results/
+```
+
+- Each component takes the merged config and returns processed DataFrames.
+- Final output: `processed_data.csv` and `samples_points_data.csv` (CSV with
+  `sep=';'`, `decimal=','`) plus `.png` plots in run-specific `results/`.
 
 ### Key Components
 
-- **`FermentationDataProcessor`**: Core calculations for feed rates, base addition, reactor volume, and induction states
-- **`BioreactorDataParser`**: Handles CSV parsing with configurable separators and date formats
-- **`OfflineMeasurementsParser`**: Processes Excel sample sheets
-- **`DataAligner`**: Temporal alignment of online/offline data with configurable tolerance
-- **`DataVisualizer`**: Multi-parameter time series plotting
+- **`FermentationDataProcessor`** — core calculations (feed, base, volume,
+  induction, protein, off-gas, carbon balance, rates/yields).
+- **`FermentationDataCleaner`** — cleaning and process-time derivation.
+- **`BioreactorDataParser`** / **`OfflineMeasurementsParser`** — CSV/Excel
+  parsing with configurable separators and date formats.
+- **`DataAligner`** — temporal alignment with configurable tolerance.
+- **`DataVisualizer`** — multi-parameter time-series plotting.
+
+All of the above are re-exported from `upstream_analysis/__init__.py`.
 
 ### Experiment Structure
 
-Example runs follow this directory pattern:
-
 ```
-examples/doe_example/
-├── ferm_XX/
-│   ├── run_config.yaml     # Run-specific parameters
-│   ├── data/               # Raw CSV/Excel files
-│   └── results/            # Generated outputs
+examples/<example>/<run>/
+├── run_config.yaml     # run-specific parameter overrides
+├── data/               # raw CSV / Excel files (gitignored — large/proprietary)
+└── results/            # generated outputs (CSV + plots, gitignored)
 ```
 
-### Configuration Parameters
+> `examples/**/data/` and `**/results/` outputs are gitignored. To ship data
+> intentionally (as `real_data_example` does), use `git add -f`.
 
-Key sections in `default_config.yaml`:
+## Notes for Contributors
 
-- `parsing`: File format settings (separators, date formats)
-- `column_mapping`: Maps raw headers to standardized names
-- `cleaning`: Data preprocessing options
-- `alignment`: Temporal matching settings
-- `processing`: Biological and reactor parameters for calculations
-
-When modifying analysis logic, focus on the processor module for derived calculations and the config system for parameter changes.
+- When modifying analysis logic, focus on `data/processor.py` for derived
+  calculations and the config system for parameter changes.
+- Add physical constants to `core/constants.py` rather than inlining magic
+  numbers.
+- Raise typed exceptions from `core/exceptions.py` and validate inputs with
+  `core/validation.py` — avoid silent NaN returns.
+- Keep the test suite green: run `pytest` before committing.

@@ -10,12 +10,13 @@ logger = logging.getLogger(__name__)
 
 def sanitize_filename(filename: str) -> str:
     """Removes characters potentially problematic for filenames."""
-    # Remove or replace special characters like %, /, :, whitespace, °
-    sanitized = re.sub(r'[<>:"/\\|?*%\.,\s°]', '_', filename)
-    # Remove leading/trailing underscores
-    sanitized = sanitized.strip('_')
+    # Replace characters unsafe in filenames: path separators, quotes, wildcards,
+    # brackets/parentheses, percent, punctuation, whitespace, and the degree symbol.
+    sanitized = re.sub(r'[<>:"/\\|?*%\.,\s°\[\]\(\)]', '_', filename)
+    # Strip leading underscores only; trailing underscores are kept intentionally.
+    sanitized = sanitized.lstrip('_')
     # Limit length if necessary
-    return sanitized[:100] # Limit length to avoid issues
+    return sanitized[:100]  # Limit length to avoid issues
 
 class DataVisualizer:
     """Generates time-series plots for fermentation data."""

@@ -1,228 +1,57 @@
-# Byte-compiled / optimized / DLL files
+# =============================================================================
+# Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
+.eggs/
+build/
+dist/
+wheels/
+sdist/
 *.egg
 MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# =============================================================================
+# Virtual environments
+# =============================================================================
+.venv/
+venv/
+env/
+ENV/
+.env
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# =============================================================================
+# Dependency management
+# =============================================================================
+# uv.lock IS committed on purpose for reproducible installs.
+# (Do not ignore it.)
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+# =============================================================================
+# Testing / coverage
+# =============================================================================
+.pytest_cache/
+.mypy_cache/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
+htmlcov/
 coverage.xml
 *.cover
-*.py,cover
+.tox/
+.nox/
 .hypothesis/
-.pytest_cache/
 
-# Translations
-*.mo
-*.pot
+# =============================================================================
+# Data, outputs, and notebooks
+# =============================================================================
+# Raw data, generated outputs, and plots are kept OUT of git. We ignore by
+# extension (data/output file types) — simpler than scattering path rules across
+# the example dirs — then re-allow the few locations that must be trackable.
+examples/**/data/                 # raw experiment data dirs (also covered below)
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Project-specific ignores
-# Generated plots and images (results from analysis)
-**/results/*.png
-**/results/*.jpg
-**/results/*.jpeg
-**/results/*.svg
-**/results/*.pdf
-
-# Exceptions (tracked files)
-!modeling_playground/LDH/results/ferm_01_fit.png
-
-# Generated data files (processed results)
-**/results/*.csv
-
-# Virtual environment
-.venv/
-
-# Incorrect site-packages in project root (should not be here)
-Python3*/
-
-# Package build artifacts
-src/USP.egg-info/
-*.egg-info/
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-.virtual_documents/
-
-# Temporary files
-*.tmp
-*.temp
-*.log
-
-# Data file formats
-# JSON files (except in specific directories where they're config)
-*.json
-!src/**/*.json
-!examples/**/*.json
-
-# Excel files - be selective about which to ignore
-# Generated/consolidated Excel files should be ignored, raw data kept
-**/results/*.xlsx
-**/*consolidated*.xlsx
-**/*compiled*.xlsx
-**/LDH_consolidated_results.xlsx
-**/traintest_compiled.xlsx
-
-# YAML files - generally keep these as they're configuration
-# Uncomment below if you want to ignore generated YAML files
-# **/results/*.yaml
-# **/results/*.yml
-# **/*generated*.yaml
-# **/*generated*.yml
-
-# Matlab files (if any)
-*.m~
-*.asv
-
-# R files (if any)
-*.Rhistory
-*.RData
-*.Ruserdata
-
-# LaTeX auxiliary files
-*.aux
-*.bbl
-*.blg
-*.fdb_latexmk
-*.fls
-*.log
-*.synctex.gz
-*.toc
-
-
-# ============================================================================
-# Project-specific ignores
-# ============================================================================
-
-# Data files (all CSV, Excel, images - not just in results/)
+# Data / output file types — not tracked anywhere by default
 *.csv
 *.xlsx
 *.png
@@ -230,26 +59,68 @@ src/USP.egg-info/
 *.jpeg
 *.svg
 *.pdf
-
-# Jupyter notebooks (not just checkpoints)
 *.ipynb
 
-# Modeling/experimental work directory
+# Consolidated / compiled data exports
+**/*consolidated*.xlsx
+**/*compiled*.xlsx
+
+# Re-allow test fixtures (in-memory today, but permit future fixture files)
+!tests/fixtures/
+!tests/fixtures/**
+
+
+# =============================================================================
+# Scratch / experimental work (not part of the package)
+# =============================================================================
 modeling_playground/
-
-# Tool-specific folders
-.serena/
-
-# uv.lock (if you use uv for dependency management)
-uv.lock
-
-# Archive folders
 **/archive/
 **/*_archived/
-
-# Temporary Claude working directories
+.serena/
 **/tmpclaude-*
 
-# Analysis result folders
-qp_analysis_results/
-ib_solubility_analysis/
+# =============================================================================
+# Jupyter
+# =============================================================================
+.ipynb_checkpoints/
+.virtual_documents/
+
+# =============================================================================
+# Type checkers / linters
+# =============================================================================
+.pyre/
+.dmypy.json
+dmypy.json
+.cache
+
+# =============================================================================
+# IDEs
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# OS
+# =============================================================================
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# =============================================================================
+# Logs / temp
+# =============================================================================
+*.log
+*.tmp
+*.temp
+
+# =============================================================================
+# Misc generated artifacts
+# =============================================================================
+# Incorrect site-packages dumped in project root
+Python3*/
