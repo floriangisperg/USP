@@ -109,7 +109,7 @@ try:
 
     # 3. Parse Offline Data
     df_offline_parsed = None
-    offline_time_col = config.get('alignment',{}).get('offline_time_col','process_time')
+    offline_time_col = config.get('alignment',{}).get('offline_time_col','Process time [h]')
     # Check if offline_file path was successfully determined above
     if offline_file is not None:
         try:
@@ -138,11 +138,11 @@ try:
         df_merged['is_sample'] = False
         df_samples = pd.DataFrame(columns=df_merged.columns)
 
-    # 5. Process Data (This now includes adding 'is_induced')
+    # 5. Process Data (This now includes adding 'Is induced [-]')
     logger.info("Processing aligned data...")
     df_processed = processor.process_data(df_merged)
     logger.info(f"Processed data shape: {df_processed.shape}")
-    print_cols = ['process_time', 'balance', 'feed_g', 'feed_ml', 'volume_ml', 'is_induced'] # Add is_induced
+    print_cols = ['Process time [h]', 'Balance [g]', 'Feed [g]', 'Feed [mL]', 'Volume [mL]', 'Is induced [-]']
     available_print_cols = [col for col in print_cols if col in df_processed.columns]
     if available_print_cols:
          print("\nProcessed Data Head/Tail (Selected Columns):\n", df_processed[available_print_cols].head())
@@ -199,7 +199,7 @@ try:
 
     # 8. Final Check Print
     logger.info("Final check of volume calculation components (Tail):")
-    check_cols = ['process_time', 'feed_ml', 'base_volume_added_ml', 'volume_ml', 'cumulative_sample_volume_ml', 'volume_corrected_ml']
+    check_cols = ['Process time [h]', 'Feed [mL]', 'Base volume added [mL]', 'Volume [mL]', 'Cumulative sample volume [mL]', 'Volume corrected [mL]']
     available_check_cols = [col for col in check_cols if col in df_processed.columns]
     if available_check_cols:
         print(df_processed[available_check_cols].tail())

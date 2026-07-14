@@ -95,8 +95,8 @@ try:
     logger.debug(f"Columns available just before final print: {list(df_processed.columns)}")
     # --- END DEBUG LINE ---
 
-    print("\nProcessed Data Head (with feed/volume):\n", df_processed[['process_time', 'balance', 'feed_g', 'feed_ml', 'volume_ml']].head())
-    print(df_processed[['process_time', 'balance', 'feed_g', 'feed_ml', 'volume_ml']].tail())
+    print("\nProcessed Data Head (with feed/volume):\n", df_processed[['Process time [h]', 'Balance [g]', 'Feed [g]', 'Feed [mL]', 'Volume [mL]']].head())
+    print(df_processed[['Process time [h]', 'Balance [g]', 'Feed [g]', 'Feed [mL]', 'Volume [mL]']].tail())
 
     # --- Save Results ---
     logger.info(f"Saving results to: {output_dir}")
@@ -109,8 +109,8 @@ try:
 
     # End of real_data_analysis.py, before saving
     logger.info("Final check of volume calculation components (Tail):")
-    print(df_processed[['process_time', 'feed_ml', 'base_volume_added_ml', 'volume_ml', 'cumulative_sample_volume_ml',
-                        'volume_corrected_ml']].tail())
+    print(df_processed[['Process time [h]', 'Feed [mL]', 'Base volume added [mL]', 'Volume [mL]', 'Cumulative sample volume [mL]',
+                        'Volume corrected [mL]']].tail())
 
     logger.info(f"Saving results to: {output_dir}")
 

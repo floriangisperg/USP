@@ -23,53 +23,46 @@ metadata:
 # ==================================================
 # 3. PROCESSING PARAMETERS - Values Specific to THIS Run
 # ==================================================
-processing_parameters:
+processing:
+  processing_parameters:
+    reactor_setup:
+      initial_volume_ml: 1100.0
 
-  reactor_setup:
-    initial_volume_ml: 1100.0
+    gas_params:
+      inlet_o2_mol_pct: 21.0
+      inlet_co2_mol_pct: 0.04
+      inlet_h2o_mol_pct: 0.004761905  # UPDATED
+      outlet_o2_wet_mol_pct: 20.9     # (optional, not active)
+      air_flow_l_min: 0.12
+      molar_volume_air_l_mol: 25.291
+      molar_volume_temp_c: 35.0
 
-  gas_params:
-    inlet_o2_mol_pct: 21.0          
-    inlet_co2_mol_pct: 0.04         
-    inlet_h2o_mol_pct: 0.004761905  # UPDATED
-    outlet_o2_wet_mol_pct: 20.9     # (optional, not active)
-    air_flow_l_min: 0.12            
-    molar_volume_air_l_mol: 25.291  
-    molar_volume_temp_c: 35.0       
+    feed_definitions:
+      feed_1:
+        name: 'Glucose Feed'
+        density_g_ml: 1.150
 
-  feed_definitions:
-    feed_1:
-      name: 'Glucose Feed'
-      density_g_ml: 1.150
+    medium_definitions:
+      pass
 
-  medium_definitions:
-    pass
+    base_titrant: #12.5% ammonia solution
+      compound: 'NH4OH'
+      molarity_mol_l: 6.95
+      density_g_ml: 0.947
+      pump_channel: 'Pump2'
+      total_added_g: 0 #64.8 # g
 
-  base_titrant: #12.5% ammonia solution
-    compound: 'NH4OH'
-    molarity_mol_l: 6.95
-    density_g_ml: 0.947
-    pump_channel: 'Pump2'
-    total_added_g: 0 #64.8 # g
+    biomass:
+      pass
 
-  biomass:
-    pass
+    substrate_properties:
+      glucose:
+        molar_mass_g_c_mol: 30.03
+      acetate:
+        molar_mass_g_c_mol: 29.5
 
-  substrate_properties:
-    glucose:
-      molar_mass_g_c_mol: 30.03
-    acetate:
-      molar_mass_g_c_mol: 29.5
+    product_properties:
+      name: 'scFv-His'
+  #    nitrogen_content_gN_gP: 0.1647
 
-  product_properties:
-    name: 'scFv-His'
-#    nitrogen_content_gN_gP: 0.1647
 
-# ==================================================
-# 4. PROCESSING STEP OVERRIDES (Optional)
-# ==================================================
-processing_step_overrides:
-  processing:
-    induced_phases:
-      - 'induced Fedbatch'
-      - 'Production'

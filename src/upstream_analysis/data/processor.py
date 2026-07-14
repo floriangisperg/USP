@@ -12,28 +12,51 @@ class FermentationDataProcessor:
     def __init__(self, config: dict):
         self.config = config
         # Define expected structure keys for clarity
+        # Support both old and new config structures
+        # Old: config['processing_parameters']
+        # New: config['processing']['processing_parameters']
         self.processing_params_key = 'processing_parameters'
         self.feed_def_key = 'feed_definitions'
         self.medium_def_key = 'medium_definitions'
         self.base_titrant_key = 'base_titrant'
         self.reactor_setup_key = 'reactor_setup'
 
+        # Determine config structure
+        self.processing_config = self._get_processing_config()
+
+    def _get_processing_config(self) -> dict:
+        """Get the processing config section, supporting both old and new structures."""
+        # Try new structure first: config['processing']['processing_parameters']
+        if 'processing' in self.config and isinstance(self.config['processing'], dict):
+            if 'processing_parameters' in self.config['processing']:
+                return self.config['processing']['processing_parameters']
+            # Some configs might have params directly under 'processing'
+            return self.config['processing']
+
+        # Fall back to old structure: config['processing_parameters']
+        if self.processing_params_key in self.config:
+            return self.config[self.processing_params_key]
+
+        # Return empty dict if neither found
+        logger.warning("Could not find processing_parameters in config. Using empty dict.")
+        return {}
+
     # --- Helper to get nested values safely ---
     def _get_nested_param(self, keys: List[str], expected_type=None, is_required=True, default=None):
-        """Safely gets and validates nested dictionary values."""
-        value = self.config
-        path_str = ""
+        """Safely gets and validates nested dictionary values from processing config."""
+        value = self.processing_config
+        path_str = "processing_config"
         for key in keys:
             path_str += f"['{key}']"
             if isinstance(value, dict):
                 value = value.get(key)
                 if value is None:
                     if is_required:
-                        msg = f"Missing required configuration parameter at path: config{path_str}"
+                        msg = f"Missing required configuration parameter at path: {path_str}"
                         logger.error(msg)
                         raise ValueError(msg)
                     else:
-                        logger.debug(f"Optional config parameter not found at path: config{path_str}. Using default: {default}")
+                        logger.debug(f"Optional config parameter not found at path: {path_str}. Using default: {default}")
                         return default
             else: # Path is broken
                 if is_required:
@@ -88,7 +111,7 @@ class FermentationDataProcessor:
 
         try:
             feed_density = self._get_nested_param(
-                [self.processing_params_key, self.feed_def_key, 'feed_1', 'density_g_ml'],
+                [self.feed_def_key, 'feed_1', 'density_g_ml'],
                 expected_type=float, is_required=True
             )
             # Get median filter settings
@@ -210,11 +233,11 @@ class FermentationDataProcessor:
         # --- Get Parameters & Validate ---
         try:
             total_base_g = self._get_nested_param(
-                [self.processing_params_key, self.base_titrant_key, 'total_added_g'],
+                [self.base_titrant_key, 'total_added_g'],
                 expected_type=float, is_required=True
             )
             base_density_g_ml = self._get_nested_param(
-                [self.processing_params_key, self.base_titrant_key, 'density_g_ml'],
+                [self.base_titrant_key, 'density_g_ml'],
                 expected_type=float, is_required=True
             )
         except (ValueError, TypeError) as e:
@@ -310,7 +333,7 @@ class FermentationDataProcessor:
         # --- Get Start Volume ---
         try:
             start_volume = self._get_nested_param(
-                [self.processing_params_key, self.reactor_setup_key, 'initial_volume_ml'],
+                [self.reactor_setup_key, 'initial_volume_ml'],
                 expected_type=float, is_required=True
             )
         except (ValueError, TypeError) as e:
