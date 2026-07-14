@@ -64,7 +64,8 @@ class DataVisualizer:
             # Heuristic: if more than 75% are NaN, plot as scatter/markers
             # Also plot calculated protein parameters as scatter since they're derived from offline measurements
             is_likely_offline = param_data.isnull().sum() / len(param_data) > 0.75
-            is_calculated_protein = any(x in param.lower() for x in ['total_calculated', 'yield', 'fraction'])
+            is_calculated_protein = (any(x in param.lower() for x in ['total_calculated', 'yield', 'fraction']) or
+                                   'protein' in param.lower() and 'calculated' in param.lower())
 
             try:
                 if is_likely_offline or is_calculated_protein:

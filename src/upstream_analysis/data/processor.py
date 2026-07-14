@@ -779,19 +779,19 @@ class FermentationDataProcessor:
 
         logger.info(f"Original protein data - Soluble: {orig_has_soluble}, IB: {orig_has_ib}, Total: {orig_has_total}")
 
-        # Always create both protein columns, filling missing ones with zeros
+        # Always create both protein columns, filling missing ones with NaNs
         if not orig_has_soluble:
-            df_out['Protein soluble [g/L]'] = 0.0
-            logger.info("Created soluble protein column (filled with zeros - not present in original data).")
+            df_out['Protein soluble [g/L]'] = np.nan
+            logger.info("Created soluble protein column (filled with NaNs - not present in original data).")
         if not orig_has_ib:
-            df_out['Protein IB [g/L]'] = 0.0
-            logger.info("Created IB protein column (filled with zeros - not present in original data).")
+            df_out['Protein IB [g/L]'] = np.nan
+            logger.info("Created IB protein column (filled with NaNs - not present in original data).")
 
         # Calculate total protein based on ORIGINAL data availability
         if not orig_has_total:
             if orig_has_soluble and orig_has_ib:
                 # Both soluble and IB present in original data
-                df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]'].fillna(0) + df_out['Protein IB [g/L]'].fillna(0)
+                df_out['Protein total calculated [g/L]'] = df_out['Protein soluble [g/L]'] + df_out['Protein IB [g/L]']
                 logger.info("Calculated total protein from soluble + IB fractions.")
             elif orig_has_soluble and not orig_has_ib:
                 # Only soluble present in original data
@@ -803,6 +803,7 @@ class FermentationDataProcessor:
                 logger.info("Using IB protein as total protein (no soluble data available).")
             else:
                 # Neither soluble nor IB present - no protein data to calculate
+                df_out['Protein total calculated [g/L]'] = np.nan
                 logger.info("No protein data available in original data.")
 
         # Calculate soluble fraction (%) if soluble protein is available in original data
