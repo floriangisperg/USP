@@ -85,11 +85,32 @@ class DataVisualizer:
                     logger.debug(f"Plotting '{param}' as continuous (online) data.")
 
 
-                ax.set_xlabel(time_col.replace('_', ' ').capitalize() + " [h]") # Basic unit assumption
+                # Format time label - only append [h] if not already present
+                time_label = time_col.replace('_', ' ').capitalize()
+                if not time_label.endswith('[h]'):
+                    time_label += " [h]"
+                ax.set_xlabel(time_label)
                 ax.set_ylabel(param.replace('_', ' ').capitalize()) # Use standard name as label base
                 ax.set_title(f"{param.replace('_', ' ').capitalize()} vs Time")
                 ax.grid(True, which='both', linestyle='--', linewidth=0.5)
                 ax.tick_params(axis='x', rotation=45)
+
+                # Special handling for RQ plot - limit y-axis to meaningful range
+                if 'rq' in param.lower() and param.replace('_', ' ').lower().startswith('rq'):
+                    # Get the valid data range
+                    valid_data = param_data.dropna()
+                    if not valid_data.empty:
+                        # Use percentiles to set reasonable limits, excluding extreme outliers
+                        q1, q99 = valid_data.quantile([0.01, 0.99])
+                        # Set range to include most data, with minimum range of 0-2 for RQ
+                        y_min = min(0, q1)
+                        y_max = max(2.5, q99)  # Upper limit of 2.5 to capture meaningful variation
+                        ax.set_ylim(y_min, y_max)
+                        # Add a horizontal line at RQ = 1 (complete glucose oxidation)
+                        ax.axhline(y=1.0, color='r', linestyle='--', linewidth=1, alpha=0.7, label='RQ = 1.0')
+                        ax.legend()
+                        logger.debug(f"Set RQ y-axis limits to [{y_min:.2f}, {y_max:.2f}] with reference line at y=1.0")
+
                 fig.tight_layout()
 
                 # Save the plot

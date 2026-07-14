@@ -70,13 +70,18 @@ class BioreactorDataParser:
                      logger.error(f"Error parsing datetime column {col}: {e}")
                      result_df[col] = pd.NaT # Assign NaT on other errors
 
-        # Process phase
-        if 'process_phase' in result_df.columns:
-            result_df['process_phase'] = result_df['process_phase'].astype(str).str.strip()
-            result_df['process_phase'] = result_df['process_phase'].str.replace(r'([a-z])([A-Z])', r'\1 \2', regex=True)
+        # Process phase - handle both old and new column names
+        phase_col_names = ['process_phase', 'Process phase [-]']
+        for phase_col in phase_col_names:
+            if phase_col in result_df.columns:
+                result_df[phase_col] = result_df[phase_col].astype(str).str.strip()
+                result_df[phase_col] = result_df[phase_col].str.replace(r'([a-z])([A-Z])', r'\1 \2', regex=True)
+                # Replace 'nan' strings with actual NaN for proper handling
+                result_df[phase_col] = result_df[phase_col].replace('nan', pd.NA)
 
-        # Attempt numeric conversion for all other columns
-        numeric_cols = [c for c in result_df.columns if c not in time_cols and c != 'process_phase']
+        # Attempt numeric conversion for all other columns (excluding phase columns)
+        exclude_cols = set(time_cols) | set(phase_col_names)
+        numeric_cols = [c for c in result_df.columns if c not in exclude_cols]
         for col in numeric_cols:
              # Check if it's not already numeric/datetime
              if not pd.api.types.is_numeric_dtype(result_df[col]) and not pd.api.types.is_datetime64_any_dtype(result_df[col]):

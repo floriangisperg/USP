@@ -17,52 +17,53 @@ parsing:
 column_mapping:
    # --- Online Data ---
    # 'Raw Header from CSV': standard_internal_name
-   'Date Time UTC':                  date_time_utc
-   'Date Local Time':                date_time_local
-   'Batch Time, sec':                batch_time_sec
-   'Batch Time (since inoc.), sec':  batch_time_since_inoc_sec
-   'Phase':                          process_phase
-   'Phase Time, sec':                phase_time_sec
-   'Foam, -':                        foam
-   'AirFlow, l/min':                 air_flow
-   'TotalFlow, l/min':               total_flow
-   'Gas2Flow, l/min':                o2_flow
-   'GasMix':                         gas_mix
-   'Pump1, %':                       acid_pump_pct
-   'Pump1.Duration, -':              acid_pump_duration
-   'Pump2, %':                       base_pump_pct
-   'Pump2.Duration, -':              base_pump_duration
-   'Pump3, %':                       inducer_pump_pct
-   'Pump3.Duration, -':              inducer_pump_duration
-   'Pump4, %':                       feed_pump_pct
-   'Pump4.Duration, -':              feed_pump_duration
-   'Stirrer, 1/min':                 stirrer_speed
-   'Temperature, °C':                temperature # <-- Use the actual degree symbol if your file has it
+   'Date Time UTC':                  Date time [UTC]
+   'Date Local Time':                Date time [local]
+   'Batch Time, sec':                Batch time [s]
+   'Batch Time (since inoc.), sec':  Batch time since inoculation [s]
+   'Phase':                          Process phase [-]
+   'Phase Time, sec':                Phase time [s]
+   'Foam, -':                        Foam [-]
+   'AirFlow, l/min':                 Air flow [L/min]
+   'TotalFlow, l/min':               Total flow [L/min]
+   'Gas2Flow, l/min':                O2 flow [L/min]
+   'GasMix':                         Gas mix [-]
+   'Pump1, %':                       Acid pump [%]
+   'Pump1.Duration, -':              Acid pump duration [-]
+   'Pump2, %':                       Base pump [%]
+   'Pump2.Duration, -':              Base pump duration [-]
+   'Pump3, %':                       Inducer pump [%]
+   'Pump3.Duration, -':              Inducer pump duration [-]
+   'Pump4, %':                       Feed pump [%]
+   'Pump4.Duration, -':              Feed pump duration [-]
+   'Stirrer, 1/min':                 Stirrer speed [1/min]
+   'Temperature, °C':                Temperature [°C] # <-- Use the actual degree symbol if your file has it
    # If you still have encoding issues with '°', use the workaround:
-#   'Temperature, Â°C':             temperature
-   'Balance, g':                     balance
-   'AnalogIO1, %':                   analog_io1
-   'AnalogIO2, %':                   analog_io2
-   'pH, -':                          ph
-   'pO2, %':                         po2
-   'GenericGasAnalyser.ExitCO2, %':  offgas_co2
-   'GenericGasAnalyser.ExitO2, %':   offgas_o2
-   'OD600':                          od600_online
-   'ExponentialFeeding.Feedrate, %': feedrate_exp
-   'FeedingInduction.Feedrate2, %':  feedrate_ind
+   'Temperature, Â°C':             Temperature [°C]
+   'Temperature, ¬∞C':             Temperature [°C]  # ferm_05 encoding
+   'Balance, g':                     Balance [g]
+   'AnalogIO1, %':                   Analog IO1 [%]
+   'AnalogIO2, %':                   Analog IO2 [%]
+   'pH, -':                          pH [-]
+   'pO2, %':                         pO2 [%]
+   'GenericGasAnalyser.ExitCO2, %':  Offgas CO2 [%]
+   'GenericGasAnalyser.ExitO2, %':   Offgas O2 [%]
+   'OD600':                          OD600 online [-]
+   'ExponentialFeeding.Feedrate, %': Feed rate exp [%]
+   'FeedingInduction.Feedrate2, %':  Feed rate ind [%]
 
    # --- Offline Data ---
    # 'Raw Header from Samples File': standard_internal_name
-   'Process Time [h]':               process_time
-   'Biomass [g/L]':                  biomass_g_l
-   'Glucose [g/L]':                  glucose_g_l
-   'Protein concentration [g/L]':    protein_g_l
-   'Protein IB [g/L]':               IB_g_l
-   'Protein soluble [g/L]':          protein_soluble_g_L
-   'Sample volume [mL]':             sample_volume_ml
-   'Acetate [g/L]':                  acetate_g_l
-   'Viability [%]':                  viability_pct
-   'OD':                             od600
+   'Process Time [h]':               Process time [h]
+   'Biomass [g/L]':                  Biomass [g/L]
+   'Glucose [g/L]':                  Glucose [g/L]
+   'Protein concentration [g/L]':    Protein [g/L]
+   'Protein IB [g/L]':               Protein IB [g/L]
+   'Protein soluble [g/L]':          Protein soluble [g/L]
+   'Sample volume [mL]':             Sample volume [mL]
+   'Acetate [g/L]':                  Acetate [g/L]
+   'Viability [%]':                  Viability [%]
+   'OD':                             OD600 [-]
 
 # Default Settings for Library Operation
 cleaning:
@@ -77,8 +78,8 @@ cleaning:
   balance_tare_threshold: -100
 
 alignment:
-  online_time_col: 'process_time'
-  offline_time_col: 'process_time'
+  online_time_col: 'Process time [h]'
+  offline_time_col: 'Process time [h]'
   tolerance_hours: 0.1
   save_separate_samples_file: true
   force_align_last_sample: true
@@ -103,10 +104,30 @@ processing:
     - 'induced Fedbatch'
     - 'Induced fed batch'
     - 'Production'
+  gas_params:
+    o2_in_air_percent: 21.0      # O2 fraction in air (%)
+    co2_in_air_percent: 0.04     # CO2 fraction in air (%)
+    inlet_h2o_mol_pct: 0.0       # Inlet H2O vapor (% mol/mol)
+    outlet_h2o_mol_pct: 0.0      # Outlet H2O vapor (% mol/mol)
+    offgas_is_wet: false         # True if offgas O2/CO2 are reported on wet basis
+    use_n2_balance: false        # Use N2 balance for CER/OUR (requires inlet/outlet fractions)
+    molar_volume_air_l_mol: 22.414 # Molar volume (L/mol) at STP
+    calculate_inlet_composition: true
+    calculate_cer: true          # CO2 Evolution Rate
+    calculate_our: true          # O2 Uptake Rate
+    calculate_rq: true           # Respiratory Quotient
+    calculate_specific_rates: true # Per biomass (qO2, qCO2)
   filtering: # Specific to feed calculations
     apply_feed_filter: true
     median_filter_window: 5
     median_filter_threshold: 10
+  rate_params:
+    apply_smoothing: true
+    smoothing_window_points: 5
+    smoothing_min_periods: 1
+    interpolation_method: 'spline' # spline or linear
+    spline_order: 3
+    spline_smoothing: 0.0
 
 # Placeholders
 analysis: {}

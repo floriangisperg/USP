@@ -44,7 +44,7 @@ def load_config(experiment_config_path: Union[str, Path, None] = None) -> dict:
         raise FileNotFoundError(f"Default configuration file not found at {DEFAULT_CONFIG_PATH}")
 
     try:
-        with open(DEFAULT_CONFIG_PATH, 'r') as f:
+        with open(DEFAULT_CONFIG_PATH, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
             logger.info(f"Loaded default configuration from {DEFAULT_CONFIG_PATH}")
     except Exception as e:
@@ -56,7 +56,7 @@ def load_config(experiment_config_path: Union[str, Path, None] = None) -> dict:
         exp_path = Path(experiment_config_path)
         if exp_path.exists():
             try:
-                with open(exp_path, 'r') as f:
+                with open(exp_path, 'r', encoding='utf-8') as f:
                     experiment_config = yaml.safe_load(f)
                     if experiment_config: # Ensure file is not empty
                         logger.info(f"Loading and merging experiment config from {exp_path}")
@@ -70,6 +70,46 @@ def load_config(experiment_config_path: Union[str, Path, None] = None) -> dict:
     else:
          logger.info("No experiment-specific configuration path provided. Using defaults.")
 
+
+    # Load optional media config (e.g., delisa_media_config.yaml)
+    media_config_name = None
+    if isinstance(config, dict):
+        media_config_name = config.get('metadata', {}).get('media_config_file')
+        if not media_config_name:
+            media_config_name = config.get('analysis', {}).get('media_config_file')
+
+    media_overrides = None
+    if isinstance(config, dict):
+        media_overrides = config.get('analysis', {}).get('delisa_media_config')
+
+    if media_config_name:
+        candidates = []
+        if isinstance(media_config_name, str):
+            media_path = Path(media_config_name)
+            if media_path.is_absolute():
+                candidates.append(media_path)
+            if experiment_config_path:
+                candidates.append(Path(experiment_config_path).parent / media_config_name)
+            # Fallback to bundled media config inside the package
+            candidates.append(Path(__file__).resolve().parent.parent / 'analysis' / media_config_name)
+
+        media_config_path = next((p for p in candidates if p.exists()), None)
+        if media_config_path:
+            try:
+                with open(media_config_path, 'r', encoding='utf-8') as f:
+                    media_config = yaml.safe_load(f)
+                if isinstance(media_config, dict):
+                    config.setdefault('analysis', {})
+                    if isinstance(media_overrides, dict) and media_overrides:
+                        media_config = merge_configs(media_config, media_overrides)
+                    config['analysis']['delisa_media_config'] = media_config
+                    logger.info(f"Loaded media config from {media_config_path}")
+                else:
+                    logger.warning(f"Media config at {media_config_path} is empty or invalid.")
+            except Exception as e:
+                logger.error(f"Error loading media config from {media_config_path}: {e}")
+        else:
+            logger.warning(f"Media config file not found: {media_config_name}")
 
     return config
 

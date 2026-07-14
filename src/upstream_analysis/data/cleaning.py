@@ -13,9 +13,9 @@ class FermentationDataCleaner:
         self.config = config
         self.cleaning_config = config.get('cleaning', {})
         # Get specific settings needed within this class
-        self.balance_cols = self.cleaning_config.get('balance_columns', ['balance'])
+        self.balance_cols = self.cleaning_config.get('balance_columns', ['Balance [g]'])
         self.tare_threshold = self.cleaning_config.get('balance_tare_threshold', -100)
-        self.median_filter_cols = self.cleaning_config.get('median_filter_columns', ['balance'])
+        self.median_filter_cols = self.cleaning_config.get('median_filter_columns', ['Balance [g]'])
         self.median_window = self.cleaning_config.get('median_filter_window', 20)
         self.median_threshold = self.cleaning_config.get('median_filter_threshold', 30)
 
@@ -24,7 +24,7 @@ class FermentationDataCleaner:
         cleaned_df = df.copy()
         logger.info("Starting data cleaning process...")
 
-        phase_col = 'process_phase'
+        phase_col = 'Process phase [-]'
         balance_mode = self.config.get('processing_parameters', {}).get('balance_mode', 'reactor_weight')
 
         # --- Handle Preparation Phase ---
@@ -65,9 +65,9 @@ class FermentationDataCleaner:
         # --- Median Filter (excluding balance if mode is 'feed_source') ---
         if self.cleaning_config.get('median_filter', True):
             filter_cols = self.median_filter_cols  # Get columns from __init__
-            if balance_mode == 'feed_source' and 'balance' in filter_cols:
-                filter_cols = [col for col in filter_cols if col != 'balance']
-                logger.info("Excluding 'balance' from cleaner's median filter (mode: feed_source).")
+            if balance_mode == 'feed_source' and 'Balance [g]' in filter_cols:
+                filter_cols = [col for col in filter_cols if col != 'Balance [g]']
+                logger.info("Excluding 'Balance [g]' from cleaner's median filter (mode: feed_source).")
             if filter_cols:  # Proceed only if there are columns left to filter
                 cleaned_df = self._rolling_median_filter(cleaned_df, columns_to_filter=filter_cols)
             else:
@@ -85,17 +85,17 @@ class FermentationDataCleaner:
     # Keep _filter_preparation_phase as is
     def _filter_preparation_phase(self, df: pd.DataFrame) -> pd.DataFrame:
         # ... (no changes needed here) ...
-        if 'process_phase' in df.columns:
+        if 'Process phase [-]' in df.columns:
             original_rows = len(df)
             phase_to_filter = 'Preparation'
-            mask = df['process_phase'].astype(str).str.strip() != phase_to_filter
+            mask = df['Process phase [-]'].astype(str).str.strip() != phase_to_filter
             filtered_df = df[mask].copy()
             rows_removed = original_rows - len(filtered_df)
             if rows_removed > 0:
                 logger.info(f"Filtered out {rows_removed} rows from '{phase_to_filter}' phase.")
             return filtered_df
         else:
-            logger.warning("No 'process_phase' column found, cannot filter preparation phase.")
+            logger.warning("No 'Process phase [-]' column found, cannot filter preparation phase.")
             return df
 
     def _balance_tare_correction(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -169,26 +169,26 @@ class FermentationDataCleaner:
         return result_df
 
     def _calculate_process_time(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates 'process_time' in hours, relative to the first row of the cleaned data."""
+        """Calculates 'Process time [h]' in hours, relative to the first row of the cleaned data."""
         result_df = df.copy()
-        # Use batch_time_sec as the source - ensure this mapping is correct in default_config
-        time_col_sec = 'batch_time_sec'
+        # Use Batch time [s] as the source - ensure this mapping is correct in default_config
+        time_col_sec = 'Batch time [s]'
 
         if time_col_sec in result_df.columns:
             time_numeric = pd.to_numeric(result_df[time_col_sec], errors='coerce')
             if time_numeric.notna().any():
-                logger.info(f"Calculating 'process_time' (hours) from '{time_col_sec}'.")
+                logger.info(f"Calculating 'Process time [h]' from '{time_col_sec}'.")
                 # Find the first non-NaN time value to use as the reference start time
                 first_valid_time_sec = time_numeric.dropna().iloc[0]
-                result_df['process_time'] = (time_numeric - first_valid_time_sec) / 3600.0
+                result_df['Process time [h]'] = (time_numeric - first_valid_time_sec) / 3600.0
                 logger.info(
                     f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec.")
             else:
                 logger.warning(
                     f"Column '{time_col_sec}' contains only NaNs or non-numeric data. Cannot calculate process time.")
-                result_df['process_time'] = np.nan
+                result_df['Process time [h]'] = np.nan
         else:
             logger.warning(f"Column '{time_col_sec}' not found. Cannot calculate process time.")
-            result_df['process_time'] = np.nan
+            result_df['Process time [h]'] = np.nan
 
         return result_df

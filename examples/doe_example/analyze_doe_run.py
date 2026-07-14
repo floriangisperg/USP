@@ -154,20 +154,22 @@ try:
     # 6. Plotting Step
     logger.info("Generating overview plots...")
     parameters_to_plot = [
-        'air_flow', 'total_flow', 'o2_flow', 'gas_mix', 'base_pump_pct',
-        'base_pump_duration', 'inducer_pump_pct', 'inducer_pump_duration',
-        'feed_pump_pct', 'feed_pump_duration', 'stirrer_speed',
-        # Check for standard 'temperature' first, then original name
-        'temperature', 'Temperature, Â°C', # Add both possibilities
-        'balance', 'analog_io1', 'analog_io2', 'ph', 'po2',
-        'offgas_co2', 'offgas_o2', 'od600_online', 'feedrate_exp',
-        'feedrate_ind', 'od600', 'glucose_g_l', 'acetate_g_l',
-        'protein_g_l', 'protein_soluble_g_L', 'IB_g_l', 'protein_total_calculated_g_l',
-        'soluble_fraction_pct', 'IB_fraction_pct', 'protein_soluble_yield_g_g',
-        'protein_IB_yield_g_g', 'protein_total_yield_g_g', 'biomass_g_l', 'viability_pct', 'sample_volume_ml',
-        'feed_g', 'feed_ml', 'base_volume_added_ml', 'volume_ml',
-        'cumulative_sample_volume_ml', 'volume_corrected_ml',
-        'is_induced' # Plot the new indicator
+        'Air flow [L/min]', 'Total flow [L/min]', 'O2 flow [L/min]', 'Gas mix [-]',
+        'Acid pump [%]', 'Acid pump duration [-]', 'Base pump [%]', 'Base pump duration [-]',
+        'Inducer pump [%]', 'Inducer pump duration [-]', 'Feed pump [%]', 'Feed pump duration [-]',
+        'Stirrer speed [1/min]', 'Temperature [°C]', 'Balance [g]',
+        'Analog IO1 [%]', 'Analog IO2 [%]', 'pH [-]', 'pO2 [%]',
+        'Offgas CO2 [%]', 'Offgas O2 [%]', 'Inlet O2 [%]', 'Inlet CO2 [%]',
+        'CER [mmol/L/h]', 'OUR [mmol/L/h]', 'RQ [-]', 'qO2 [mmol/g/h]', 'qCO2 [mmol/g/h]',
+        'OD600 online [-]', 'Feed rate exp [%]', 'Feed rate ind [%]',
+        'OD600 [-]', 'Glucose [g/L]', 'Acetate [g/L]',
+        'Protein [g/L]', 'Protein soluble [g/L]', 'Protein IB [g/L]', 'Protein total calculated [g/L]',
+        'Soluble fraction [%]', 'IB fraction [%]', 'Protein soluble yield [g/g]',
+        'Protein IB yield [g/g]', 'Protein total yield [g/g]', 'Biomass [g/L]',
+        'Viability [%]', 'Sample volume [mL]',
+        'Feed [g]', 'Feed [mL]', 'Base volume added [mL]', 'Volume [mL]',
+        'Cumulative sample volume [mL]', 'Volume corrected [mL]',
+        'Is induced [-]', 'Induction time [h]'
     ]
     # Filter list to only plot columns that actually exist in the final DataFrame
     plotable_parameters = [p for p in parameters_to_plot if p in df_processed.columns]
@@ -175,7 +177,7 @@ try:
     visualizer.plot_selected_parameters(
         df=df_processed,
         parameters=plotable_parameters, # Use the filtered list
-        time_col='process_time'
+        time_col='Process time [h]'
     )
 
 
