@@ -13,31 +13,19 @@ class BioreactorDataParser:
     def __init__(self, config: dict):
         self.config = config
         self.parser_config = config.get('parsing', {}).get('bioreactor', {})
-        # --- Store the specific mapping it received ---
         self.col_map_config = config.get('column_mapping', {})
-        # --- ADD DEBUG LOGGING HERE ---
-        logger.debug("--- PARSER INIT DEBUG ---")
-        logger.debug(f"Parser received column_mapping: {self.col_map_config}")
-        # --- END DEBUG ---
         self.decimal = self.parser_config.get('decimal_separator', ',')
         self.separator = self.parser_config.get('column_separator', ';')
         self.date_format = self.parser_config.get('date_format', None)
         self.skiprows = self.parser_config.get('skiprows', 1)
-        # Add encoding here if you were trying it
         self.encoding = self.parser_config.get('encoding', 'cp1252') # Defaulting to cp1252 based on Â°
 
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Applies renaming based on the config."""
         mapping = self.col_map_config  # Should be {'Raw':'Standard'} from merged config
 
-        logger.debug(f"--- PARSER DEBUG ---")
-        logger.debug(f"Original df columns read: {list(df.columns)}")
-        logger.debug(f"Mapping dictionary from config: {mapping}")
-
         # Find which keys from mapping are actually in df.columns
         present_keys = {k: v for k, v in mapping.items() if k in df.columns}
-        logger.debug(f"Mapping keys found in df columns: {list(present_keys.keys())}")
-
         missing_raw_keys = [k for k in mapping.keys() if k not in df.columns]
         if missing_raw_keys:
             logger.warning(f"Raw headers from config mapping *NOT* found in data: {missing_raw_keys}")
@@ -46,7 +34,6 @@ class BioreactorDataParser:
         if present_keys:
             renamed_df = df.rename(columns=present_keys)
             logger.info(f"Renamed {len(present_keys)} online columns based on config.")
-            logger.debug(f"Columns AFTER renaming: {list(renamed_df.columns)}")
             return renamed_df
         else:
             logger.warning("No matching keys found between config mapping and data columns. No columns renamed.")
@@ -147,49 +134,25 @@ class OfflineMeasurementsParser:
 
 
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        # ... (keep the previous debug version or simplify if needed) ...
         mapping = {}
-        logger.debug("--- OFFLINE PARSER RENAME DEBUG ---")
-        logger.debug(f"Columns received by _rename_columns: {list(df.columns)}")
-        logger.debug(f"Config mapping being used: {self.col_map_config}")
-
-        for std_name, orig_names in self.col_map_config.items():
-             # Use the correct mapping direction: Raw -> Standard
-             raw_header = orig_names # Assuming config is {'Standard': 'Raw'} - Needs fixing if not!
-             standard_name = std_name
-             if isinstance(raw_header, str):
-                 if raw_header in df.columns:
-                     if raw_header != standard_name:
-                         mapping[raw_header] = standard_name
-                         logger.debug(f"Offline map: Adding '{raw_header}' -> '{standard_name}'")
-             # ... (handle list case if necessary) ...
-
-        # Double-check the mapping direction based on your LAST config update
-        # The log "Renamed 0 offline columns" suggests the mapping keys (raw headers) aren't matching.
-        # Let's explicitly recreate the mapping based on the config structure:
-        # {'Raw Header' : 'Standard Name'}
+        # Create mapping from raw headers to standard names
         correct_mapping = {}
         for raw_header, standard_name in self.col_map_config.items():
             # This assumes default_config.yaml has {'Raw Header': standard_name}
             if raw_header in df.columns:
                 correct_mapping[raw_header] = standard_name
 
-        logger.debug(f"Final rename mapping being applied: {correct_mapping}")
         renamed_df = df.rename(columns=correct_mapping)
         renamed_count = len(correct_mapping)
         logger.info(f"Renamed {renamed_count} offline columns based on config.")
-        logger.debug(f"Columns AFTER offline renaming: {list(renamed_df.columns)}")
         return renamed_df
-        # --- End of _rename_columns ---
 
     # Located inside class OfflineMeasurementsParser in src/upstream_analysis/data/parser.py
     def _process_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Basic type conversions for offline data."""
         result_df = df.copy()
-        logger.debug("--- OFFLINE PARSER PROCESS DEBUG ---")
-        logger.debug(f"Columns at start of _process_dataframe: {list(result_df.columns)}")
 
-        # --- Ensure Process Time is Numeric ---
+        # Ensure Process Time is Numeric
         if 'process_time' in result_df.columns:
             result_df['process_time'] = pd.to_numeric(result_df['process_time'], errors='coerce')
             if result_df['process_time'].isna().any():
@@ -215,22 +178,12 @@ class OfflineMeasurementsParser:
                     converted_series = pd.to_numeric(series_to_convert, errors='coerce')
 
                     # Only assign back if conversion was successful for at least some values
-                    # And ensure we are not overwriting with all NaNs if original wasn't all NaN
                     if converted_series.notna().any():
-                        # Check if original only contained NaN/None before overwriting
-                        # This check might be too strict depending on data
-                        # if result_df[col].isna().all() or not converted_series.isna().all():
                         result_df[col] = converted_series
-                        logger.debug(
-                            f"Attempted numeric conversion for offline column '{col}' (original dtype: {original_dtype})")
-                    else:
-                        logger.debug(
-                            f"Numeric conversion failed for all values in offline column '{col}'. Keeping original.")
 
                 except Exception as e:
                     logger.debug(f"Could not convert offline column {col} to numeric: {e}. Keeping original dtype.")
 
-        logger.debug(f"Columns at end of _process_dataframe: {list(result_df.columns)}")
         return result_df
 
 
@@ -251,10 +204,6 @@ class OfflineMeasurementsParser:
                 df = pd.read_excel(file_path, sheet_name=self.sheet_name, header=0)
             else:
                 raise ValueError(f"Unsupported offline file format: {file_path.suffix}")
-
-            # --- ADD THIS DEBUG LINE ---
-            logger.debug(f"Columns READ DIRECTLY from offline file '{file_path.name}': {list(df.columns)}")
-            # --- END OF DEBUG LINE ---
 
             df = self._rename_columns(df)
             df = self._process_dataframe(df) # Ensure process_time exists/is numeric

@@ -5,6 +5,9 @@ import logging
 from copy import deepcopy
 from typing import Union, Dict
 
+from ..core.validation import validate_config_structure
+from ..core.exceptions import USPConfigError
+
 logger = logging.getLogger(__name__)
 
 # Path to the default configuration file within the package
@@ -110,6 +113,14 @@ def load_config(experiment_config_path: Union[str, Path, None] = None) -> dict:
                 logger.error(f"Error loading media config from {media_config_path}: {e}")
         else:
             logger.warning(f"Media config file not found: {media_config_name}")
+
+    # Validate config structure after all merging is complete
+    if isinstance(config, dict):
+        try:
+            validate_config_structure(config)
+        except USPConfigError as e:
+            logger.error(f"Config validation failed: {e}")
+            raise
 
     return config
 

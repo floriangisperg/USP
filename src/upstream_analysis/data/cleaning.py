@@ -4,6 +4,13 @@ import numpy as np
 from typing import List, Dict, Optional
 import logging
 
+from ..core.constants import (
+    MAD_TO_SIGMA_SCALE,
+    SEC_PER_HOUR,
+    DEFAULT_MEDIAN_FILTER_WINDOW,
+    DEFAULT_MEDIAN_FILTER_THRESHOLD,
+)
+
 logger = logging.getLogger(__name__)
 
 class FermentationDataCleaner:
@@ -16,8 +23,8 @@ class FermentationDataCleaner:
         self.balance_cols = self.cleaning_config.get('balance_columns', ['Balance [g]'])
         self.tare_threshold = self.cleaning_config.get('balance_tare_threshold', -100)
         self.median_filter_cols = self.cleaning_config.get('median_filter_columns', ['Balance [g]'])
-        self.median_window = self.cleaning_config.get('median_filter_window', 20)
-        self.median_threshold = self.cleaning_config.get('median_filter_threshold', 30)
+        self.median_window = self.cleaning_config.get('median_filter_window', DEFAULT_MEDIAN_FILTER_WINDOW)
+        self.median_threshold = self.cleaning_config.get('median_filter_threshold', DEFAULT_MEDIAN_FILTER_THRESHOLD)
 
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply configured cleaning steps, conditionally filtering balance."""
@@ -151,7 +158,7 @@ class FermentationDataCleaner:
                 # Calculate MAD robustly, ignoring NaNs
                 mad = (diff.rolling(window=self.median_window, center=True, min_periods=1)
                        .apply(lambda x: x.median(), raw=True))  # Calculate median ignoring NaNs in window
-                mad = mad * 1.4826  # Scale to approximate standard deviation
+                mad = mad * MAD_TO_SIGMA_SCALE  # Scale MAD to approximate standard deviation
                 mad.replace(0, np.nan, inplace=True)  # Avoid division by zero MAD
 
                 mask = (diff > self.median_threshold * mad) & mad.notna()
@@ -180,7 +187,7 @@ class FermentationDataCleaner:
                 logger.info(f"Calculating 'Process time [h]' from '{time_col_sec}'.")
                 # Find the first non-NaN time value to use as the reference start time
                 first_valid_time_sec = time_numeric.dropna().iloc[0]
-                result_df['Process time [h]'] = (time_numeric - first_valid_time_sec) / 3600.0
+                result_df['Process time [h]'] = (time_numeric - first_valid_time_sec) / SEC_PER_HOUR
                 logger.info(
                     f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec.")
             else:

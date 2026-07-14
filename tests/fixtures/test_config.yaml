@@ -1,0 +1,81 @@
+# Test configuration for USP unit tests
+# This configuration is specifically designed for testing the processing pipeline
+
+parsing:
+  bioreactor:
+    decimal_separator: ','
+    column_separator: ';'
+    skiprows: 1
+    encoding: 'cp1252'
+  offline:
+    decimal_separator: '.'
+    column_separator: ','
+    sheet_name: 0
+
+column_mapping:
+  'Raw Temp': 'Temperature [°C]'
+  'raw_balance': 'Balance [g]'
+
+cleaning:
+  median_filter: true
+  median_filter_window: 10
+  median_filter_threshold: 10
+  balance_tare_threshold: -100
+  calculate_process_time: true
+
+alignment:
+  online_time_col: 'Process time [h]'
+  offline_time_col: 'process_time'
+  tolerance_hours: 0.02
+  force_align_last_sample: false
+
+processing:
+  processing_parameters:
+    balance_mode: 'reactor_weight'
+    reactor_setup:
+      initial_volume_ml: 1100.0
+
+    gas_params:
+      molar_volume_air_l_mol: 22.414
+      o2_in_air_percent: 21.0
+      co2_in_air_percent: 0.04
+      calculate_cer: true
+      calculate_our: true
+      calculate_rq: true
+      calculate_specific_rates: true
+      calculate_inlet_composition: true
+      use_n2_balance: false
+      offgas_is_wet: false
+
+    feed_definitions:
+      feed_1:
+        density_g_ml: 1.1
+
+    base_titrant:
+      total_added_g: 100.0
+      density_g_ml: 1.0
+
+    biomass_params:
+      molar_mass_g_c_mol: 26.565
+
+    induced_phases:
+      - 'induced Fedbatch'
+
+    rate_params:
+      apply_smoothing: true
+      smoothing_window_points: 5
+      smoothing_min_periods: 1
+      interpolation_method: 'spline'
+      spline_order: 3
+      spline_smoothing: 0.0
+
+analysis:
+  delisa_media_config:
+    feed_1:
+      components:
+        glucose:
+          concentration_g_l: 440.0
+    batch_medium:
+      components:
+        glucose:
+          concentration_g_l: 22.0

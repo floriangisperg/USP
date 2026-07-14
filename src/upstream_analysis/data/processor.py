@@ -1,13 +1,101 @@
+"""
+Fermentation data processing module for USP package.
+
+This module provides the FermentationDataProcessor class, which handles
+the calculation of derived parameters from cleaned and aligned fermentation
+data. It implements core bioprocess engineering calculations including:
+
+- Feed rate and volume calculations
+- Reactor volume tracking with sample removal correction
+- Gas exchange rate calculations (CER, OUR, RQ)
+- Carbon balance analysis
+- Growth and production rate calculations
+- Induction timing and protein parameter calculations
+
+The processor maintains backward compatibility with both old and new
+configuration structures and performs extensive validation to ensure
+data quality before calculations.
+
+Example:
+    >>> from upstream_analysis.data.processor import FermentationDataProcessor
+    >>> processor = FermentationDataProcessor(config)
+    >>> processed_data = processor.process_data(cleaned_aligned_df)
+
+Scientific Background:
+    Calculations are based on standard bioprocess engineering principles
+    for E. coli fermentation in fed-batch mode. Gas exchange rates follow
+    mass balance principles, and carbon balance enables assessment of
+    metabolic state and product yield.
+
+Classes:
+    FermentationDataProcessor: Main class for processing fermentation data
+"""
+
 # src/upstream_analysis/data/processor.py
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 import logging
 
+from ..core.constants import (
+    MOLAR_VOLUME_AIR_L_PER_MOL,
+    MAD_TO_SIGMA_SCALE,
+    O2_IN_AIR_PERCENT,
+    CO2_IN_AIR_PERCENT,
+    BIOMASS_MOLAR_MASS_G_PER_C_MOL,
+    GLUCOSE_MOLAR_MASS_G_PER_C_MOL,
+    ACETATE_MOLAR_MASS_G_PER_C_MOL,
+    ML_PER_L,
+    SEC_PER_HOUR,
+    MIN_PER_HOUR,
+    PERCENT,
+    MMOL_PER_MOL,
+    DEFAULT_INITIAL_VOLUME_ML,
+    DEFAULT_FEED_GLUCOSE_G_L,
+    DEFAULT_INITIAL_GLUCOSE_G_L,
+)
+from ..core.validation import (
+    require_columns,
+    validate_dataframe_not_empty,
+    validate_numeric_series,
+    get_nested_config,
+    validate_positive_numeric,
+)
+from ..core.exceptions import USPCalculationError, USPDataError, USPConfigError
+
 logger = logging.getLogger(__name__)
 
 class FermentationDataProcessor:
-    """Processes cleaned/aligned data. Calculates feed, volume, etc."""
+    """
+    Processes cleaned and aligned fermentation data.
+
+    This class calculates derived bioprocess parameters from raw bioreactor
+    and offline measurement data. It implements a sequential processing
+    pipeline where each calculation builds on previous results.
+
+    The processing order is critical and maintained by the process_data method:
+    1. Feed calculation (from balance data)
+    2. Base titrant volume calculation
+    3. Reactor volume calculation
+    4. Induction detection and timing
+    5. Protein parameter calculation
+    6. Inlet gas composition
+    7. Off-gas rate calculation (CER, OUR, RQ)
+    8. Specific off-gas rates (qO2, qCO2)
+    9. Carbon balance analysis
+    10. Growth and production rates
+
+    Attributes:
+        config: Dictionary containing processing parameters
+        processing_config: Extracted processing_parameters section
+        feed_def_key: Key for feed definitions
+        base_titrant_key: Key for base titrant parameters
+        reactor_setup_key: Key for reactor setup parameters
+
+    Example:
+        >>> processor = FermentationDataProcessor(config)
+        >>> processed = processor.process_data(cleaned_df)
+    """
 
     def __init__(self, config: dict):
         self.config = config
@@ -43,7 +131,21 @@ class FermentationDataProcessor:
 
     # --- Helper to get nested values safely ---
     def _get_nested_param(self, keys: List[str], expected_type=None, is_required=True, default=None):
-        """Safely gets and validates nested dictionary values from processing config."""
+        """
+        Safely gets and validates nested dictionary values from processing config.
+
+        Args:
+            keys: List of keys for nested access
+            expected_type: Expected type of the value
+            is_required: Whether the parameter is required
+            default: Default value if not found and not required
+
+        Returns:
+            The value at the nested path
+
+        Raises:
+            USPConfigError: If required parameter is missing or has wrong type
+        """
         value = self.processing_config
         path_str = "processing_config"
         for key in keys:
@@ -54,7 +156,7 @@ class FermentationDataProcessor:
                     if is_required:
                         msg = f"Missing required configuration parameter at path: {path_str}"
                         logger.error(msg)
-                        raise ValueError(msg)
+                        raise USPConfigError(msg)
                     else:
                         logger.debug(f"Optional config parameter not found at path: {path_str}. Using default: {default}")
                         return default
@@ -62,7 +164,7 @@ class FermentationDataProcessor:
                 if is_required:
                     msg = f"Invalid config structure. Expected dict at path before {path_str}"
                     logger.error(msg)
-                    raise TypeError(msg)
+                    raise USPConfigError(msg)
                 else:
                     return default
 
@@ -72,9 +174,9 @@ class FermentationDataProcessor:
              if expected_type is float and isinstance(value, int):
                  value = float(value)
              else:
-                msg = f"Config parameter at path config{path_str} has wrong type. Expected {expected_type}, got {type(value)}"
+                msg = f"Config parameter at path config{path_str} has wrong type. Expected {expected_type.__name__}, got {type(value).__name__}"
                 logger.error(msg)
-                raise TypeError(msg)
+                raise USPConfigError(msg)
 
         # Specific check for numeric > 0 if needed (e.g., density)
         if expected_type in [float, int] and isinstance(value, (int, float)) and value <= 0:
@@ -82,7 +184,7 @@ class FermentationDataProcessor:
              if any(p in keys for p in ['density_g_ml', 'molarity_mol_l', 'start_volume_ml', 'molar_volume_air_l_mol']):
                  msg = f"Numeric config parameter at path config{path_str} must be positive, got {value}"
                  logger.error(msg)
-                 raise ValueError(msg)
+                 raise USPConfigError(msg)
 
         return value
 
@@ -94,6 +196,15 @@ class FermentationDataProcessor:
         3. Applies median filter to the modified balance series.
         4. Calculates feed based on the filtered, modified balance.
         5. Overwrites the original 'balance' column with the filtered, modified version.
+
+        Args:
+            df: Input DataFrame with balance and phase data
+
+        Returns:
+            DataFrame with calculated feed columns
+
+        Raises:
+            USPConfigError: If feed configuration is invalid
         """
         logger.info("Attempting to calculate feed (adjusting balance first)...")
         df_out = df.copy()
@@ -105,14 +216,19 @@ class FermentationDataProcessor:
         time_col = 'Process time [h]'
 
         # --- Validate Inputs & Config ---
-        if not all(col in df_out.columns for col in [balance_col, phase_col, time_col]):
-            logger.warning(f"Processor: Missing required columns. Cannot calculate feed.")
+        required_cols = [balance_col, phase_col, time_col]
+        if not all(col in df_out.columns for col in required_cols):
+            logger.warning(f"Processor: Missing required columns {required_cols}. Cannot calculate feed.")
             return df_out
 
         try:
-            feed_density = self._get_nested_param(
-                [self.feed_def_key, 'feed_1', 'density_g_ml'],
-                expected_type=float, is_required=True
+            feed_density = validate_positive_numeric(
+                self._get_nested_param(
+                    [self.feed_def_key, 'feed_1', 'density_g_ml'],
+                    expected_type=float, is_required=True
+                ),
+                'feed_density_g_ml',
+                allow_zero=False
             )
             # Get median filter settings
             cleaning_config = self.config.get('cleaning', {})
@@ -120,7 +236,7 @@ class FermentationDataProcessor:
             median_window = cleaning_config.get('median_filter_window', 10)
             median_threshold = cleaning_config.get('median_filter_threshold', 10)
 
-        except (ValueError, TypeError) as e:
+        except (USPConfigError, ValueError, TypeError) as e:
             logger.error(f"Cannot calculate feed due to config error: {e}")
             return df_out
 
@@ -183,7 +299,7 @@ class FermentationDataProcessor:
             # --- *** CORRECTED MAD CALCULATION *** ---
             # Use numpy's median function for the rolling apply with raw=True
             mad = (diff.rolling(window=median_window, center=True, min_periods=1)
-                   .apply(np.median, raw=True)) * 1.4826  # Use np.median
+                   .apply(np.median, raw=True)) * MAD_TO_SIGMA_SCALE  # Scale MAD to standard deviation
             # --- *** END CORRECTION *** ---
 
             mad.replace(0, np.nan, inplace=True)
@@ -224,7 +340,44 @@ class FermentationDataProcessor:
 
     # In class FermentationDataProcessor (processor.py)
     def _calculate_base_flux_and_volume(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates cumulative base volume based on phases and total added."""
+        """
+        Calculates cumulative base titrant volume added to the bioreactor.
+
+        This method determines the amount of base (typically NaOH or NH4OH)
+        added for pH control by analyzing pump duration data. It assumes
+        the pump duration increases cumulatively throughout the fermentation
+        and uses the total added base amount from configuration to scale
+        the duration to actual volume.
+
+        The calculation involves:
+        1. Identifying the base addition period (Batch, Fedbatch, induced phases)
+        2. Finding the start and end of cumulative pump duration
+        3. Scaling duration to volume using total base added from config
+        4. Ensuring volume is 0 before addition and constant after addition ends
+
+        Args:
+            df: DataFrame containing bioreactor data with required columns:
+                - 'Base pump duration [-]': Cumulative pump duration
+                - 'Process phase [-]': Process phase identifiers
+
+        Returns:
+            DataFrame with added column:
+                - 'Base volume added [mL]': Cumulative base volume in mL
+
+        Raises:
+            USPConfigError: If base titrant configuration is invalid
+
+        Notes:
+            - Base addition only occurs during active growth phases
+            - Volume calculation is scaled by total base added from config
+            - Pump duration is assumed to be monotonically increasing
+
+        Scientific Context:
+            Base addition is necessary in E. coli fermentation to maintain
+            optimal pH as organic acids (acetate, lactate) are produced during
+            growth. The base consumption rate is an indicator of metabolic
+            activity and can be correlated with growth rate.
+        """
         logger.info("Attempting to calculate base volume added...")
         df_out = df.copy()
         # Initialize column FIRST
@@ -326,7 +479,44 @@ class FermentationDataProcessor:
         return df_out
 
     def _calculate_volume(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates reactor volume, incorporating feed, base, and samples."""
+        """
+        Calculates reactor volume with sample removal correction.
+
+        This method computes the working volume of the bioreactor throughout
+        the fermentation by combining initial volume with cumulative additions
+        (feed, base) and subtracting sample removals.
+
+        Volume components:
+        1. Initial volume (from config)
+        2. Feed addition (from _calculate_feed)
+        3. Base addition (from _calculate_base_flux_and_volume)
+        4. Sample removal (negative correction)
+
+        Args:
+            df: DataFrame with feed and base volume columns
+
+        Returns:
+            DataFrame with added columns:
+                - 'Volume [mL]': Base volume (start + feed + base)
+                - 'Volume corrected [mL]': Volume with sample removal
+                - 'Cumulative sample volume [mL]': Total sample volume removed
+
+        Raises:
+            USPConfigError: If reactor setup configuration is invalid
+
+        Notes:
+            - Sample volume correction is only applied if sample data exists
+            - Corrected volume is used for concentration-based calculations
+            - Uncorrected volume represents total liquid in the vessel
+
+        Scientific Context:
+            Accurate volume tracking is essential for:
+            - Converting off-gas rates to volumetric rates (per L)
+            - Calculating specific rates (per g biomass)
+            - Determining carbon balance closure
+            Sample removal correction ensures rates are calculated based on
+            actual working volume rather than total volume added.
+        """
         logger.info("Calculating reactor volume...")
         df_out = df.copy()
 
@@ -397,7 +587,34 @@ class FermentationDataProcessor:
         return df_out
 
     def _add_induction_indicator(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Adds a binary 'Is induced [-]' column based on process phases."""
+        """
+        Adds a binary indicator for induction phase.
+
+        This method identifies when induction begins in the fermentation
+        by detecting the first occurrence of configured induced phases
+        (e.g., 'induced Fedbatch'). It creates a binary column that is
+        0 before induction and 1 from induction start onwards.
+
+        Args:
+            df: DataFrame with process phase data
+
+        Returns:
+            DataFrame with added column:
+                - 'Is induced [-]': Binary indicator (0 = pre-induction, 1 = post-induction)
+
+        Notes:
+            - Induction phases must be defined in config under 'processing.induced_phases'
+            - Indicator changes from 0 to 1 at first occurrence of induced phase
+            - If no induced phases are found, column remains all 0
+
+        Scientific Context:
+            Induction (typically with IPTG) triggers recombinant protein expression
+            in E. coli. The induction timing is critical for:
+            - Separating growth and production phases
+            - Analyzing metabolic shifts
+            - Calculating induction-specific rates (qP, productivity)
+            The indicator enables phase-specific analysis and comparison.
+        """
         logger.info("Adding induction indicator column...")
         df_out = df.copy()
         df_out['Is induced [-]'] = 0  # Initialize to 0 (not induced)
@@ -434,7 +651,34 @@ class FermentationDataProcessor:
         return df_out
 
     def _add_induction_timer(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Adds 'Induction time [h]' column showing time elapsed since induction start."""
+        """
+        Calculates time elapsed since induction start.
+
+        This method computes the induction time by subtracting the induction
+        start time from the current process time. The timer is 0 before
+        induction and increases monotonically after induction begins.
+
+        Args:
+            df: DataFrame with induction indicator and process time
+
+        Returns:
+            DataFrame with added column:
+                - 'Induction time [h]': Hours elapsed since induction (0 before induction)
+
+        Notes:
+            - Requires 'Is induced [-]' column from _add_induction_indicator
+            - Timer is 0 before induction, then increases linearly
+            - Used for time-since-induction analysis and plotting
+
+        Scientific Context:
+            Induction time is essential for:
+            - Analyzing production kinetics independent of growth time
+            - Determining optimal harvest time
+            - Comparing induction strategies
+            - Calculating volumetric and specific productivities
+            Post-induction analysis enables separate characterization of
+            biomass growth and recombinant protein production phases.
+        """
         logger.info("Adding induction timer column...")
         df_out = df.copy()
 
@@ -478,8 +722,52 @@ class FermentationDataProcessor:
 
     def _calculate_protein_parameters(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates derived protein parameters including total protein, soluble fraction, etc.
-        Always creates both soluble and IB columns, filling with zeros when missing from original data.
+        Calculates derived protein parameters for recombinant expression analysis.
+
+        This method processes protein measurement data to compute total protein,
+        fractionation (soluble vs. inclusion bodies), and yields relative to
+        biomass. It handles incomplete data by creating missing columns with
+        appropriate defaults.
+
+        Args:
+            df: DataFrame with optional protein measurements:
+                - 'Protein [g/L]': Total protein concentration
+                - 'Protein soluble [g/L]': Soluble protein fraction
+                - 'Protein IB [g/L]': Inclusion body (insoluble) fraction
+                - 'Biomass [g/L]': Biomass concentration (for yield calculations)
+
+        Returns:
+            DataFrame with added columns:
+                Total protein:
+                    - 'Protein total calculated [g/L]': Sum of soluble + IB (if no total measured)
+                Fractionation:
+                    - 'Soluble fraction [%]': Percentage of total that is soluble
+                    - 'IB fraction [%]': Percentage of total that is inclusion bodies
+                Yields (if biomass available):
+                    - 'Protein soluble yield [g/g]': g soluble protein / g biomass
+                    - 'Protein IB yield [g/g]': g IB protein / g biomass
+                    - 'Protein total yield [g/g]': g total protein / g biomass
+
+        Notes:
+            - Always creates both soluble and IB columns (zeros if missing)
+            - Preserves original data distinction for calculated vs. measured values
+            - Yields require biomass concentration data
+            - Fractions are relative to total protein (measured or calculated)
+
+        Scientific Context:
+            Recombinant protein expression in E. coli often results in:
+            - Soluble protein: Properly folded, active, desired product
+            - Inclusion bodies (IB): Aggregated, misfolded protein
+
+            Soluble fraction is a critical quality attribute:
+            - High soluble fraction: Good expression conditions
+            - Low soluble fraction: May indicate stress, overexpression, or suboptimal conditions
+            - Soluble fraction typically 30-80% depending on expression system
+
+            Protein yield indicates productivity:
+            - Total yield: g protein / g biomass (typical 0.05-0.3 g/g for E. coli)
+            - Used for process economics and scale-up calculations
+            - Affected by promoter strength, induction strategy, and host strain
         """
         logger.info("Calculating protein-derived parameters...")
         df_out = df.copy()
@@ -554,8 +842,47 @@ class FermentationDataProcessor:
 
     def _calculate_inlet_gas_composition(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates inlet gas composition (O2, CO2) based on air and O2 flow rates.
-        Uses weighted average: y_in = (F_air * y_air + F_O2 * y_O2) / (F_air + F_O2)
+        Calculates inlet gas composition from air and pure O2 flows.
+
+        This method computes the composition of gas entering the bioreactor
+        when pure oxygen supplementation is used. It accounts for the mixing
+        of air (21% O2, 0.04% CO2) with pure O2 (100% O2, 0% CO2).
+
+        The calculation uses a weighted average based on flow rates:
+            y_O2_in = (F_air × 0.21 + F_O2 × 1.0) / (F_air + F_O2)
+            y_CO2_in = (F_air × 0.0004 + F_O2 × 0.0) / (F_air + F_O2)
+
+        Args:
+            df: DataFrame with gas flow data:
+                - 'Air flow [L/min]' or alternatives: Air flow rate
+                - 'O2 flow [L/min]' or alternatives: Pure O2 flow rate
+
+        Returns:
+            DataFrame with added columns:
+                - 'Inlet O2 [%]': O2 percentage in inlet gas
+                - 'Inlet CO2 [%]': CO2 percentage in inlet gas
+
+        Notes:
+            - Only needed when pure O2 supplementation is used
+            - Without O2 supplementation, inlet composition is constant (air)
+            - Required for accurate OUR calculation when O2 enrichment varies
+            - Inlet CO2 is typically negligible but calculated for completeness
+
+        Scientific Context:
+            Pure O2 supplementation is used to:
+            - Maintain dissolved O2 at high biomass concentrations
+            - Support very high cell density cultures
+            - Prevent oxygen limitation during peak metabolic activity
+
+            Understanding inlet composition is critical for:
+            - Accurate mass balance calculations
+            - Determining actual O2 transfer rates
+            - Avoiding errors in OUR when O2 enrichment varies
+
+            Typical inlet O2 ranges:
+            - Without supplementation: 21% (air only)
+            - With supplementation: 21-95% (air + pure O2)
+            - Pure O2: 100% (rare, would require special sparging)
         """
         logger.info("Calculating inlet gas composition...")
         df_out = df.copy()
@@ -632,10 +959,48 @@ class FermentationDataProcessor:
 
     def _calculate_offgas_rates(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates offgas rates: CER, OUR, RQ
-        CER (CO2 Evolution Rate) = F_gas * (CO2_out / 100) / Volume
-        OUR (O2 Uptake Rate) = F_gas * (O2_in - O2_out) / 100 / Volume
-        RQ (Respiratory Quotient) = CER / OUR
+        Calculates gas exchange rates: CER, OUR, and RQ.
+
+        This method computes the key metabolic indicators from off-gas analysis:
+        - CER (CO2 Evolution Rate): Rate of CO2 production
+        - OUR (O2 Uptake Rate): Rate of O2 consumption
+        - RQ (Respiratory Quotient): CER/OUR ratio indicating metabolism
+
+        Two calculation methods are supported:
+        1. Simple method: Uses total flow and gas fractions directly
+        2. N2 balance method: Accounts for changes in total gas flow (more accurate)
+
+        Args:
+            df: DataFrame with offgas analysis data including:
+                - 'Total flow [L/min]' or alternatives: Total exhaust gas flow
+                - 'Offgas CO2 [%]': CO2 percentage in exhaust
+                - 'Offgas O2 [%]': O2 percentage in exhaust
+                - 'Volume corrected [mL]': Reactor working volume
+
+        Returns:
+            DataFrame with added columns (as configured):
+                - 'CER [mmol/L/h]': CO2 evolution rate
+                - 'OUR [mmol/L/h]': O2 uptake rate
+                - 'RQ [-]': Respiratory quotient
+
+        Raises:
+            USPConfigError: If gas parameter configuration is invalid
+
+        Notes:
+            - N2 balance method is more accurate when O2 supplementation is used
+            - Simple method assumes total gas flow is constant
+            - Rates are volumetric (per L reactor volume)
+            - All rates are in mmol units for convenient scaling
+
+        Scientific Context:
+            Offgas analysis provides real-time insight into metabolic state:
+            - CER indicates metabolic activity and carbon source utilization
+            - OUR reflects aerobic respiration and energy metabolism
+            - RQ reveals carbon metabolism:
+              * RQ ~1.0: Complete glucose oxidation (CO2 + H2O)
+              * RQ >1.0: Fermentation products (acetate, lactate)
+              * RQ <1.0: Storage compounds or anaerobic metabolism
+            These rates enable non-invasive monitoring of culture physiology.
         """
         logger.info("Calculating offgas rates (CER, OUR, RQ)...")
         df_out = df.copy()
@@ -685,14 +1050,14 @@ class FermentationDataProcessor:
 
         # --- Get numeric values ---
         f_gas = pd.to_numeric(df_out[total_flow_col], errors='coerce')  # L/min
-        volume_l = pd.to_numeric(df_out[volume_col], errors='coerce') / 1000.0  # Convert mL to L
+        volume_l = pd.to_numeric(df_out[volume_col], errors='coerce') / ML_PER_L  # Convert mL to L
 
-        molar_volume = gas_config.get('molar_volume_air_l_mol', 22.414)
+        molar_volume = gas_config.get('molar_volume_air_l_mol', MOLAR_VOLUME_AIR_L_PER_MOL)
         try:
             molar_volume = float(molar_volume)
         except (TypeError, ValueError):
-            molar_volume = 22.414
-            logger.warning("Invalid molar_volume_air_l_mol, using 22.414 L/mol.")
+            molar_volume = MOLAR_VOLUME_AIR_L_PER_MOL
+            logger.warning(f"Invalid molar_volume_air_l_mol, using {MOLAR_VOLUME_AIR_L_PER_MOL} L/mol.")
 
         use_n2_balance = gas_config.get('use_n2_balance', False)
         offgas_is_wet = gas_config.get('offgas_is_wet', False)
@@ -717,19 +1082,19 @@ class FermentationDataProcessor:
 
         if use_n2_balance:
             # Convert inlet fractions to dry mol fractions
-            y_o2_in = o2_in / 100.0
-            y_co2_in = co2_in / 100.0
+            y_o2_in = o2_in / PERCENT
+            y_co2_in = co2_in / PERCENT
             y_n2_in = (1.0 - y_o2_in - y_co2_in).clip(lower=0.0)
 
             # Outlet wet/dry handling
-            o2_out_wet = pd.to_numeric(df_out[o2_out_col], errors='coerce') / 100.0
-            co2_out_wet = pd.to_numeric(df_out[co2_out_col], errors='coerce') / 100.0
+            o2_out_wet = pd.to_numeric(df_out[o2_out_col], errors='coerce') / PERCENT
+            co2_out_wet = pd.to_numeric(df_out[co2_out_col], errors='coerce') / PERCENT
 
             h2o_out_pct = gas_config.get('outlet_h2o_mol_pct')
             if h2o_out_pct is None:
                 h2o_out_pct = gas_config.get('inlet_h2o_mol_pct', 0.0)
             try:
-                h2o_out_frac = float(h2o_out_pct) / 100.0
+                h2o_out_frac = float(h2o_out_pct) / PERCENT
             except (TypeError, ValueError):
                 h2o_out_frac = 0.0
 
@@ -749,7 +1114,7 @@ class FermentationDataProcessor:
 
             y_n2_out = (1.0 - o2_out_dry - co2_out_dry).replace(0, np.nan)
 
-            f_in_mol_h = f_gas * 60.0 / molar_volume
+            f_in_mol_h = f_gas * MIN_PER_HOUR / molar_volume
             f_out_mol_h = f_in_mol_h * (y_n2_in / y_n2_out)
 
             if calculate_cer:
@@ -763,15 +1128,15 @@ class FermentationDataProcessor:
                 logger.info("Calculated OUR [mmol/L/h] using N2 balance.")
         else:
             # Legacy simple method using measured fractions and total flow
-            factor = 60.0 * 1000.0 / molar_volume
+            factor = MIN_PER_HOUR * MMOL_PER_MOL / molar_volume
             if calculate_cer:
                 co2_out = pd.to_numeric(df_out[co2_out_col], errors='coerce')
-                df_out['CER [mmol/L/h]'] = (f_gas * (co2_out / 100.0) / volume_l * factor)
+                df_out['CER [mmol/L/h]'] = (f_gas * (co2_out / PERCENT) / volume_l * factor)
                 logger.info("Calculated CER [mmol/L/h] using simple method.")
 
             if calculate_our:
                 o2_out = pd.to_numeric(df_out[o2_out_col], errors='coerce')
-                df_out['OUR [mmol/L/h]'] = (f_gas * ((o2_in - o2_out) / 100.0) / volume_l * factor)
+                df_out['OUR [mmol/L/h]'] = (f_gas * ((o2_in - o2_out) / PERCENT) / volume_l * factor)
                 logger.info("Calculated OUR [mmol/L/h] using simple method.")
 
         # --- Calculate RQ (Respiratory Quotient) ---
@@ -786,9 +1151,39 @@ class FermentationDataProcessor:
 
     def _calculate_specific_offgas_rates(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates biomass-specific offgas rates: qO2, qCO2
-        qO2 = OUR / Biomass [mmol/g/h]
-        qCO2 = CER / Biomass [mmol/g/h]
+        Calculates biomass-specific gas exchange rates (qO2, qCO2).
+
+        This method computes specific rates by normalizing volumetric offgas
+        rates to biomass concentration, enabling comparison across different
+        biomass levels and process conditions.
+
+        Args:
+            df: DataFrame with offgas rates and biomass concentration:
+                - 'OUR [mmol/L/h]': O2 uptake rate (volumetric)
+                - 'CER [mmol/L/h]': CO2 evolution rate (volumetric)
+                - 'Biomass [g/L]': Biomass concentration
+
+        Returns:
+            DataFrame with added columns (as available):
+                - 'qO2 [mmol/g/h]': Specific O2 uptake rate
+                - 'qCO2 [mmol/g/h]': Specific CO2 evolution rate
+
+        Notes:
+            - Specific rates are intrinsic to the culture physiology
+            - Enable comparison across different scales and conditions
+            - Require accurate biomass measurement
+            - qO2 typically 5-15 mmol/g/h for E. coli
+
+        Scientific Context:
+            Specific rates (q-values) represent metabolic activity per unit biomass:
+            - qO2: Specific oxygen consumption, indicates energy metabolism
+            - qCO2: Specific CO2 production, indicates carbon metabolism
+            These values are:
+            - Independent of reactor scale and biomass concentration
+            - Direct indicators of cellular metabolic state
+            - Used for metabolic modeling and scale-up
+            - Correlated with growth rate (mu) in many organisms
+            Typical values for E. coli: qO2 = 8-12 mmol/g/h during exponential growth.
         """
         logger.info("Calculating specific offgas rates (qO2, qCO2)...")
         df_out = df.copy()
@@ -832,22 +1227,90 @@ class FermentationDataProcessor:
 
     def _calculate_carbon_balance(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculates carbon balance for the fermentation.
+        Performs comprehensive carbon balance analysis for the fermentation.
 
-        Carbon balance: C_in = C_out + C_accumulated
+        This method tracks carbon flow through the system to assess metabolic
+        state, identify measurement inconsistencies, and evaluate process efficiency.
 
-        Inputs:
-        - Glucose from feed (calculated from Feed [g] and concentration)
-        - Initial glucose (from batch medium)
+        Carbon Balance Equation:
+            C_in = C_out + C_accumulated + C_error
 
-        Outputs:
-        - CO2 evolved (from CER)
-        - Biomass carbon (from elemental composition)
-        - Product carbon (from elemental composition, if available)
-        - Acetate carbon (if available)
+        Carbon Inputs (C_in):
+            - Glucose from feed (cumulative)
+            - Initial glucose from batch medium
 
-        Accumulated:
-        - Residual glucose (from offline samples)
+        Carbon Outputs (C_out):
+            - CO2 evolved (integrated from CER)
+            - Biomass carbon (from elemental composition)
+            - Product carbon (if available)
+            - Acetate carbon (byproduct, if available)
+            - Residual glucose (unconsumed substrate)
+
+        Args:
+            df: DataFrame with feed, volume, and CER data:
+                - 'Feed [mL]': Cumulative feed volume
+                - 'Volume corrected [mL]': Reactor working volume
+                - 'CER [mmol/L/h]': CO2 evolution rate
+                - Optional: 'Biomass [g/L]', 'Protein [g/L]', 'Acetate [g/L]', 'Glucose [g/L]'
+
+        Returns:
+            DataFrame with added columns:
+                Input tracking:
+                    - 'C from feed [C-mol]': Carbon from feed glucose
+                    - 'C from batch [C-mol]': Carbon from initial glucose
+                    - 'C in [C-mol]': Total carbon input
+                Output tracking:
+                    - 'C from CO2 [C-mol]': Carbon evolved as CO2
+                    - 'C in biomass [C-mol]': Carbon in biomass
+                    - 'C in product [C-mol]': Carbon in product (if available)
+                    - 'C in acetate [C-mol]': Carbon in acetate (if available)
+                    - 'C residual glucose [C-mol]': Carbon in unconsumed glucose
+                Sample-corrected totals:
+                    - 'C biomass total [C-mol]': Total biomass carbon (including samples)
+                    - 'C product total [C-mol]': Total product carbon (including samples)
+                    - 'C out [C-mol]': Total carbon output
+                Balance metrics:
+                    - 'C recovered [%]': Percentage of input carbon accounted for
+                    - 'C balance closure [%]': Same as C recovered (backward compatibility)
+                    - 'C balance error [%]': Unaccounted carbon (100 - recovery)
+
+        Raises:
+            USPConfigError: If required configuration parameters are missing
+
+        Notes:
+            - Uses C-mol (carbon-mole) basis for universal carbon accounting
+            - Accounts for sample removal to maintain mass balance
+            - Elemental compositions from config:
+              * Biomass: CH1.77N0.24O0.49 (26.565 g/C-mol)
+              * Glucose: CH2O (30.03 g/C-mol on C-mol basis)
+              * Acetate: CH2O (29.5 g/C-mol on C-mol basis)
+            - Recovery < 100% suggests measurement errors or unaccounted products
+            - Recovery > 100% suggests overestimation of inputs or underestimation of outputs
+
+        Scientific Context:
+            Carbon balance analysis is fundamental to bioprocess engineering:
+
+            1. Data Quality Assessment:
+               - Closure near 100% indicates consistent measurements
+               - Systematic deviations reveal sensor calibration issues
+
+            2. Metabolic Insight:
+               - High CO2 fraction: Active respiration, efficient metabolism
+               - High biomass fraction: Good carbon conversion efficiency
+               - High acetate fraction: Overflow metabolism, oxygen limitation
+               - High residual glucose: Overfeeding or metabolic inhibition
+
+            3. Process Optimization:
+               - Identify carbon losses to byproducts
+               - Optimize feed strategy for desired product yield
+               - Detect metabolic shifts during induction
+
+            Typical E. coli carbon distribution (good process):
+               - CO2: 40-50% of fed carbon
+               - Biomass: 30-40% of fed carbon
+               - Product: 10-20% of fed carbon
+               - Byproducts: <5% of fed carbon
+               - Residual: <5% of fed carbon
         """
         logger.info("Calculating carbon balance...")
         df_out = df.copy()
@@ -886,7 +1349,7 @@ class FermentationDataProcessor:
                 ['processing_parameters', 'biomass_params', 'molar_mass_g_c_mol'],
                 ['processing_parameters', 'biomass', 'molar_mass_g_c_mol'],
             ],
-            default=26.565
+            default=BIOMASS_MOLAR_MASS_G_PER_C_MOL
         )
 
         # Glucose: C6H12O6 -> CH2O on C-mol basis
@@ -895,7 +1358,7 @@ class FermentationDataProcessor:
                 ['processing_parameters', 'substrate_properties', 'glucose', 'molar_mass_g_c_mol'],
                 ['processing', 'processing_parameters', 'substrate_properties', 'glucose', 'molar_mass_g_c_mol'],
             ],
-            default=30.03
+            default=GLUCOSE_MOLAR_MASS_G_PER_C_MOL
         )
 
         # Product: from run_config (if available)
@@ -920,23 +1383,23 @@ class FermentationDataProcessor:
                 ['processing_parameters', 'substrate_properties', 'acetate', 'molar_mass_g_c_mol'],
                 ['processing', 'processing_parameters', 'substrate_properties', 'acetate', 'molar_mass_g_c_mol'],
             ],
-            default=29.5
+            default=ACETATE_MOLAR_MASS_G_PER_C_MOL
         )
 
         # Feed concentration (g glucose per L feed) - from media config
         feed_conc_g_l = _get_first(
             [['analysis', 'delisa_media_config', 'feed_1', 'components', 'glucose', 'concentration_g_l']],
-            default=440.0
+            default=DEFAULT_FEED_GLUCOSE_G_L
         )
 
         # Initial volume and batch glucose concentration
         initial_volume_ml = _get_first(
             [['processing_parameters', 'reactor_setup', 'initial_volume_ml']],
-            default=1100.0
+            default=DEFAULT_INITIAL_VOLUME_ML
         )
         initial_glucose_g_l = _get_first(
             [['analysis', 'delisa_media_config', 'batch_medium', 'components', 'glucose', 'concentration_g_l']],
-            default=22.0
+            default=DEFAULT_INITIAL_GLUCOSE_G_L
         )
 
         # --- Get required columns ---
@@ -978,7 +1441,7 @@ class FermentationDataProcessor:
         # 1 mmol CO2 = 1 mmol C = 0.001 C-mol
         volume_l = pd.to_numeric(df_out['Volume corrected [mL]'], errors='coerce') / 1000.0
         cer_mmol_l_h = pd.to_numeric(df_out['CER [mmol/L/h]'], errors='coerce')
-        co2_production_rate_c_mol_h = cer_mmol_l_h * volume_l * 0.001  # C-mol/h
+        co2_production_rate_c_mol_h = cer_mmol_l_h * volume_l / MMOL_PER_MOL  # C-mol/h
         df_out['C from CO2 [C-mol]'] = (co2_production_rate_c_mol_h * dt_hours).cumsum()
 
         # 2. Biomass carbon
@@ -1064,10 +1527,10 @@ class FermentationDataProcessor:
         # However, it shows the carbon flow through the system
 
         # Calculate percentage of fed C in each compartment
-        df_out['C to CO2 [% of fed]'] = (df_out['C from CO2 [C-mol]'] / df_out['C in [C-mol]'].replace(0, np.nan)) * 100.0
-        df_out['C to biomass [% of fed]'] = (df_out['C biomass total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * 100.0
-        df_out['C to product [% of fed]'] = (df_out['C product total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * 100.0
-        df_out['C residual glucose [% of fed]'] = (df_out['C glucose total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * 100.0
+        df_out['C to CO2 [% of fed]'] = (df_out['C from CO2 [C-mol]'] / df_out['C in [C-mol]'].replace(0, np.nan)) * PERCENT
+        df_out['C to biomass [% of fed]'] = (df_out['C biomass total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * PERCENT
+        df_out['C to product [% of fed]'] = (df_out['C product total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * PERCENT
+        df_out['C residual glucose [% of fed]'] = (df_out['C glucose total [C-mol]'].fillna(0) / df_out['C in [C-mol]'].replace(0, np.nan)) * PERCENT
 
         # Calculate a "Carbon Recovery" metric
         # C recovered = CO2 + biomass/product/glucose totals (including sampled removals)
@@ -1076,7 +1539,7 @@ class FermentationDataProcessor:
              df_out['C biomass total [C-mol]'] +
              df_out['C product total [C-mol]'] +
              df_out['C glucose total [C-mol]']) /
-            df_out['C in [C-mol]'].replace(0, np.nan) * 100.0
+            df_out['C in [C-mol]'].replace(0, np.nan) * PERCENT
         )
 
         # Keep the old column name for backward compatibility, but rename it
@@ -1091,7 +1554,83 @@ class FermentationDataProcessor:
         return df_out
 
     def _calculate_rates_and_yields(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates rates (mu, qs, qP) from online/offline signals."""
+        """
+        Calculates biological rates and yields from time-series data.
+
+        This method computes the key kinetic parameters describing growth,
+        substrate consumption, and product formation. It handles sparse
+        offline data through interpolation and applies smoothing to reduce
+        noise in rate calculations.
+
+        Calculated Parameters:
+            Growth:
+                - 'mu [1/h]': Specific growth rate (from biomass concentration)
+            Substrate Consumption:
+                - 'Glucose consumed [g]': Total glucose consumed (cumulative)
+                - 'Glucose consumed rate [g/h]': Glucose consumption rate
+                - 'qS glucose [g/g/h]': Specific glucose consumption rate
+            Production:
+                - 'Protein produced [g]': Total protein produced (cumulative)
+                - 'Protein production rate [g/h]': Protein production rate
+                - 'qP total [g/g/h]': Specific protein production rate
+            Offgas-Derived (if carbon balance available):
+                - 'Glucose uptake offgas rate [g/h]': Glucose uptake from C balance
+                - 'qS offgas [g/g/h]': Specific uptake from offgas
+                - 'qS offgas calibrated [g/g/h]': Calibrated offgas-derived rate
+
+        Args:
+            df: DataFrame with concentration and volume data:
+                Required:
+                    - 'Process time [h]': Time vector for rate calculations
+                    - 'Volume corrected [mL]': Reactor working volume
+                    - 'Feed [mL]': Cumulative feed volume
+                Optional (for specific calculations):
+                    - 'Biomass [g/L]': Biomass concentration
+                    - 'Protein [g/L]' or 'Protein total calculated [g/L]': Protein concentration
+                    - 'Glucose [g/L]': Residual glucose concentration
+                    - 'Sample volume [mL]': Sample volume for removal correction
+                    - 'is_sample': Boolean indicator for sample points
+
+        Returns:
+            DataFrame with added rate and yield columns
+
+        Notes:
+            - Interpolation methods: 'spline' (default) or 'linear'
+            - Smoothing reduces noise in derivative calculations
+            - Sample removal corrections ensure accurate mass balance
+            - Offgas-derived rates provide continuous consumption estimates
+
+        Scientific Context:
+            Rate calculations are fundamental to bioprocess analysis:
+
+            Growth rate (mu):
+                - Typical E. coli mu: 0.2-0.5 h^-1 in batch, 0.05-0.15 h^-1 fed-batch
+                - Direct indicator of metabolic activity and health
+                - Used for process control and optimization
+
+            Substrate consumption rate (qS):
+                - Typical qS glucose: 0.5-2.0 g/g/h for E. coli
+                - Indicates carbon source utilization efficiency
+                - High qS may indicate overflow metabolism (acetate formation)
+
+            Production rate (qP):
+                - Varies widely with expression system
+                - Used to calculate volumetric productivity (g/L/h)
+                - Critical for process economics and scale-up
+
+            Offgas-derived rates:
+                - Provide continuous monitoring vs. discrete offline measurements
+                - Enable real-time process control decisions
+                - Require calibration against offline data for accuracy
+
+        Config Options (rate_params):
+            - apply_smoothing: Enable rate smoothing (default: true)
+            - smoothing_window_points: Smoothing window size (default: 5)
+            - smoothing_min_periods: Minimum periods for smoothing (default: 1)
+            - interpolation_method: 'spline' or 'linear' (default: 'spline')
+            - spline_order: Spline polynomial order (default: 3)
+            - spline_smoothing: Spline smoothing factor s (default: 0.0)
+        """
         logger.info("Calculating rates (mu, qs, qP)...")
         df_out = df.copy()
 
@@ -1215,11 +1754,11 @@ class FermentationDataProcessor:
                 .get('concentration_g_l')
             )
         if feed_conc_g_l is None:
-            feed_conc_g_l = 400.0
+            feed_conc_g_l = DEFAULT_FEED_GLUCOSE_G_L
         try:
             feed_conc_g_l = float(feed_conc_g_l)
         except (TypeError, ValueError):
-            feed_conc_g_l = 400.0
+            feed_conc_g_l = DEFAULT_FEED_GLUCOSE_G_L
 
         feed_g = d_feed_ml / 1000.0 * feed_conc_g_l
         feed_g_cum = feed_g.cumsum()
@@ -1323,10 +1862,31 @@ class FermentationDataProcessor:
 
     # MODIFY THE process_data METHOD:
     def process_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Main processing method, ensuring correct order of operations."""
+        """
+        Main processing method, ensuring correct order of operations.
+
+        Args:
+            df: Input DataFrame with cleaned and aligned data
+
+        Returns:
+            Processed DataFrame with calculated parameters
+
+        Raises:
+            USPDataError: If input validation fails
+        """
+        # Validate input DataFrame
         if df is None or df.empty:
             logger.error("Processor: Input DataFrame is None or empty.")
-            return pd.DataFrame()
+            return pd.DataFrame()  # Keep existing fail-soft behavior
+
+        # Validate required columns for processing
+        try:
+            required_cols = ["Process time [h]", "Process phase [-]"]
+            validate_dataframe_not_empty(df, "data processing")
+            require_columns(df, required_cols, "data processing")
+        except Exception as e:
+            logger.error(f"Processor: Input validation failed: {e}")
+            return pd.DataFrame()  # Keep existing fail-soft behavior
 
         processed_df = df.copy()
         logger.info("Starting data processing...")

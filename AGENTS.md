@@ -9,6 +9,7 @@ USP (Upstream Processing) is a Python package for analyzing E. coli fermentation
 ## Common Development Commands
 
 ### Environment Setup
+
 ```bash
 # Install package in development mode
 pip install -e .
@@ -18,6 +19,7 @@ pip install -e ".[dev]"
 ```
 
 ### Running Examples
+
 ```bash
 # Analyze a specific fermentation run (modify target_run_folder_name in script first)
 cd examples/doe_example
@@ -29,6 +31,7 @@ python real_data_analysis.py
 ```
 
 ### Code Quality
+
 ```bash
 # Format code with black
 black src/ examples/
@@ -48,6 +51,7 @@ pytest
 The package follows a modular pipeline architecture with distinct processing stages:
 
 ### Core Processing Pipeline
+
 1. **Parsing** (`data/parser.py`) - Raw data ingestion from CSV (bioreactor) and Excel (offline samples)
 2. **Cleaning** (`data/cleaning.py`) - Data quality improvements, spike removal, time calculation
 3. **Alignment** (`data/alignment.py`) - Merging online and offline datasets by time
@@ -55,16 +59,19 @@ The package follows a modular pipeline architecture with distinct processing sta
 5. **Visualization** (`visualization/plotting.py`) - Generating overview plots
 
 ### Configuration System
+
 - **Default config**: [`src/upstream_analysis/config/default_config.yaml`](src/upstream_analysis/config/default_config.yaml)
 - **Experiment configs**: Run-specific YAML files in example directories (e.g., `run_config.yaml`)
 - **Merging**: Experiment configs override defaults via hierarchical merging in [`config/loader.py`](src/upstream_analysis/config/loader.py:13)
 
 ### Data Flow
+
 - Raw data files → Parsers → Cleaner → Aligner → Processor → Visualizer → CSV results
 - Each component takes the merged config and returns processed DataFrames
 - Final output includes `processed_data.csv` and `samples_points_data.csv` in run-specific `results/` directories
 
 ### Key Components
+
 - **`FermentationDataProcessor`**: Core calculations for feed rates, base addition, reactor volume, and induction states
 - **`BioreactorDataParser`**: Handles CSV parsing with configurable separators and date formats
 - **`OfflineMeasurementsParser`**: Processes Excel sample sheets
@@ -72,7 +79,9 @@ The package follows a modular pipeline architecture with distinct processing sta
 - **`DataVisualizer`**: Multi-parameter time series plotting
 
 ### Experiment Structure
+
 Example runs follow this directory pattern:
+
 ```
 examples/doe_example/
 ├── ferm_XX/
@@ -82,7 +91,9 @@ examples/doe_example/
 ```
 
 ### Configuration Parameters
+
 Key sections in `default_config.yaml`:
+
 - `parsing`: File format settings (separators, date formats)
 - `column_mapping`: Maps raw headers to standardized names
 - `cleaning`: Data preprocessing options
