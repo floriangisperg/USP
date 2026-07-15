@@ -1,11 +1,14 @@
 """Tests for visualization functionality."""
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
+
 import tempfile
+from pathlib import Path
+
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend for testing
+import numpy as np
+import pandas as pd
+import pytest
+
+matplotlib.use("Agg")  # Use non-interactive backend for testing
 from upstream_analysis.visualization.plotting import DataVisualizer, sanitize_filename
 
 
@@ -22,32 +25,32 @@ class TestSanitizeFilename:
         """Test removal of special characters."""
         filename = "Test/With:Special*Chars?"
         result = sanitize_filename(filename)
-        assert '/' not in result
-        assert ':' not in result
-        assert '*' not in result
-        assert '?' not in result
+        assert "/" not in result
+        assert ":" not in result
+        assert "*" not in result
+        assert "?" not in result
         assert result == "Test_With_Special_Chars_"
 
     def test_sanitize_percent_sign(self):
         """Test percent sign removal."""
         filename = "C recovered [%]"
         result = sanitize_filename(filename)
-        assert '%' not in result
-        assert ']' not in result
-        assert '[' not in result
+        assert "%" not in result
+        assert "]" not in result
+        assert "[" not in result
 
     def test_sanitize_whitespace(self):
         """Test whitespace replacement."""
         filename = "Test Filename With Spaces"
         result = sanitize_filename(filename)
-        assert ' ' not in result
+        assert " " not in result
         assert result == "Test_Filename_With_Spaces"
 
     def test_sanitize_degree_symbol(self):
         """Test degree symbol removal."""
         filename = "Temperature [°C]"
         result = sanitize_filename(filename)
-        assert '°' not in result
+        assert "°" not in result
 
     def test_sanitize_length_limit(self):
         """Test filename length limiting."""
@@ -59,7 +62,7 @@ class TestSanitizeFilename:
         """Test removal of leading underscores."""
         filename = "___test_filename"
         result = sanitize_filename(filename)
-        assert not result.startswith('_')
+        assert not result.startswith("_")
 
 
 class TestDataVisualizer:
@@ -75,7 +78,7 @@ class TestDataVisualizer:
     def test_visualizer_creates_output_dir(self):
         """Test that visualizer creates output directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / 'plots'
+            output_path = Path(tmpdir) / "plots"
             visualizer = DataVisualizer(output_path)
             assert output_path.exists()
             assert output_path.is_dir()
@@ -85,16 +88,18 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0, 3.0],
-                'Temperature [°C]': [37.0, 37.1, 37.2, 37.1],
-                'Balance [g]': [5000.0, 4950.0, 4900.0, 4850.0]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0, 3.0],
+                    "Temperature [°C]": [37.0, 37.1, 37.2, 37.1],
+                    "Balance [g]": [5000.0, 4950.0, 4900.0, 4850.0],
+                }
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['Temperature [°C]'])
+            visualizer.plot_selected_parameters(test_df, ["Temperature [°C]"])
 
             # Check that plot file was created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_multiple_parameters(self):
@@ -102,20 +107,21 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0, 3.0],
-                'Temperature [°C]': [37.0, 37.1, 37.2, 37.1],
-                'Balance [g]': [5000.0, 4950.0, 4900.0, 4850.0],
-                'pH [-]': [7.0, 6.9, 6.8, 6.7]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0, 3.0],
+                    "Temperature [°C]": [37.0, 37.1, 37.2, 37.1],
+                    "Balance [g]": [5000.0, 4950.0, 4900.0, 4850.0],
+                    "pH [-]": [7.0, 6.9, 6.8, 6.7],
+                }
+            )
 
             visualizer.plot_selected_parameters(
-                test_df,
-                ['Temperature [°C]', 'Balance [g]', 'pH [-]']
+                test_df, ["Temperature [°C]", "Balance [g]", "pH [-]"]
             )
 
             # Check that all plot files were created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 3
 
     def test_plot_with_offline_data(self):
@@ -123,15 +129,23 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0, 3.0, 4.0],
-                'Biomass [g/L]': [np.nan, 10.0, np.nan, 20.0, np.nan]  # Sparse data
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0, 3.0, 4.0],
+                    "Biomass [g/L]": [
+                        np.nan,
+                        10.0,
+                        np.nan,
+                        20.0,
+                        np.nan,
+                    ],  # Sparse data
+                }
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['Biomass [g/L]'])
+            visualizer.plot_selected_parameters(test_df, ["Biomass [g/L]"])
 
             # Check that plot file was created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_with_missing_column(self):
@@ -139,19 +153,20 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0],
-                'Temperature [°C]': [37.0, 37.1, 37.2]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0],
+                    "Temperature [°C]": [37.0, 37.1, 37.2],
+                }
+            )
 
             # Should not crash for missing column
             visualizer.plot_selected_parameters(
-                test_df,
-                ['Temperature [°C]', 'NonExistent [unit]']
+                test_df, ["Temperature [°C]", "NonExistent [unit]"]
             )
 
             # Only one plot should be created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_with_all_nan_column(self):
@@ -159,19 +174,18 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0],
-                'Valid Data': [37.0, 37.1, 37.2],
-                'All NaN': [np.nan, np.nan, np.nan]
-            })
-
-            visualizer.plot_selected_parameters(
-                test_df,
-                ['Valid Data', 'All NaN']
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0],
+                    "Valid Data": [37.0, 37.1, 37.2],
+                    "All NaN": [np.nan, np.nan, np.nan],
+                }
             )
 
+            visualizer.plot_selected_parameters(test_df, ["Valid Data", "All NaN"])
+
             # Only one plot should be created (for valid data)
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_with_missing_time_column(self):
@@ -179,20 +193,20 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'Temperature [°C]': [37.0, 37.1, 37.2],
-                'Balance [g]': [5000.0, 4950.0, 4900.0]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "Temperature [°C]": [37.0, 37.1, 37.2],
+                    "Balance [g]": [5000.0, 4950.0, 4900.0],
+                }
+            )
 
             # Should not crash when time column is missing
             visualizer.plot_selected_parameters(
-                test_df,
-                ['Temperature [°C]'],
-                time_col='process_time'
+                test_df, ["Temperature [°C]"], time_col="process_time"
             )
 
             # No plots should be created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 0
 
     def test_plot_with_all_nan_time_column(self):
@@ -200,36 +214,35 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [np.nan, np.nan, np.nan],
-                'Temperature [°C]': [37.0, 37.1, 37.2]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [np.nan, np.nan, np.nan],
+                    "Temperature [°C]": [37.0, 37.1, 37.2],
+                }
+            )
 
             # Should not crash when time column is all NaN
             visualizer.plot_selected_parameters(
-                test_df,
-                ['Temperature [°C]'],
-                time_col='process_time'
+                test_df, ["Temperature [°C]"], time_col="process_time"
             )
 
             # No plots should be created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 0
 
-    def test_rq_plot_special_handling(self):
-        """Test RQ plot special handling (y-axis limits and reference line)."""
+    def test_rq_plot(self):
+        """Test that RQ plots without error (no parameter-specific special-casing)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0, 3.0],
-                'RQ [-]': [0.8, 0.9, 1.0, 1.1]
-            })
+            test_df = pd.DataFrame(
+                {"process_time": [0.0, 1.0, 2.0, 3.0], "RQ [-]": [0.8, 0.9, 1.0, 1.1]}
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['RQ [-]'])
+            visualizer.plot_selected_parameters(test_df, ["RQ [-]"])
 
             # Check that plot was created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_custom_time_column(self):
@@ -237,39 +250,41 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'Time [h]': [0.0, 1.0, 2.0, 3.0],
-                'Temperature [°C]': [37.0, 37.1, 37.2, 37.1]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "Time [h]": [0.0, 1.0, 2.0, 3.0],
+                    "Temperature [°C]": [37.0, 37.1, 37.2, 37.1],
+                }
+            )
 
             visualizer.plot_selected_parameters(
-                test_df,
-                ['Temperature [°C]'],
-                time_col='Time [h]'
+                test_df, ["Temperature [°C]"], time_col="Time [h]"
             )
 
             # Check that plot was created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_calculated_protein_parameters(self):
-        """Test plotting calculated protein parameters (should plot as scatter)."""
+        """Test that calculated protein parameters are plotted (style is data-driven)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0, 3.0],
-                'Protein total calculated [g/L]': [0.5, 1.5, 2.5, 3.5],
-                'Protein soluble yield [g/g]': [0.1, 0.2, 0.3, 0.4]
-            })
+            test_df = pd.DataFrame(
+                {
+                    "process_time": [0.0, 1.0, 2.0, 3.0],
+                    "Protein total calculated [g/L]": [0.5, 1.5, 2.5, 3.5],
+                    "Protein soluble yield [g/g]": [0.1, 0.2, 0.3, 0.4],
+                }
+            )
 
             visualizer.plot_selected_parameters(
                 test_df,
-                ['Protein total calculated [g/L]', 'Protein soluble yield [g/g]']
+                ["Protein total calculated [g/L]", "Protein soluble yield [g/g]"],
             )
 
             # Check that plots were created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 2
 
     def test_plot_empty_dataframe(self):
@@ -280,10 +295,10 @@ class TestDataVisualizer:
             test_df = pd.DataFrame()
 
             # Should not crash
-            visualizer.plot_selected_parameters(test_df, ['Temperature [°C]'])
+            visualizer.plot_selected_parameters(test_df, ["Temperature [°C]"])
 
             # No plots should be created
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 0
 
     def test_plot_filename_sanitization(self):
@@ -291,19 +306,18 @@ class TestDataVisualizer:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0],
-                'C recovered [%]': [80.0, 90.0, 95.0]
-            })
+            test_df = pd.DataFrame(
+                {"process_time": [0.0, 1.0, 2.0], "C recovered [%]": [80.0, 90.0, 95.0]}
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['C recovered [%]'])
+            visualizer.plot_selected_parameters(test_df, ["C recovered [%]"])
 
             # Check that filename is sanitized (no special chars)
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
-            assert '%' not in str(plot_files[0])
-            assert '[' not in str(plot_files[0])
-            assert ']' not in str(plot_files[0])
+            assert "%" not in str(plot_files[0])
+            assert "[" not in str(plot_files[0])
+            assert "]" not in str(plot_files[0])
 
 
 class TestPlottingEdgeCases:
@@ -314,15 +328,12 @@ class TestPlottingEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0],
-                'Temperature [°C]': [37.0]
-            })
+            test_df = pd.DataFrame({"process_time": [0.0], "Temperature [°C]": [37.0]})
 
-            visualizer.plot_selected_parameters(test_df, ['Temperature [°C]'])
+            visualizer.plot_selected_parameters(test_df, ["Temperature [°C]"])
 
             # Should still create plot
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_with_negative_values(self):
@@ -330,15 +341,14 @@ class TestPlottingEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0],
-                'Growth rate [1/h]': [-0.1, 0.0, 0.1]
-            })
+            test_df = pd.DataFrame(
+                {"process_time": [0.0, 1.0, 2.0], "Growth rate [1/h]": [-0.1, 0.0, 0.1]}
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['Growth rate [1/h]'])
+            visualizer.plot_selected_parameters(test_df, ["Growth rate [1/h]"])
 
             # Should handle negative values
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
 
     def test_plot_with_very_large_values(self):
@@ -346,13 +356,12 @@ class TestPlottingEdgeCases:
         with tempfile.TemporaryDirectory() as tmpdir:
             visualizer = DataVisualizer(Path(tmpdir))
 
-            test_df = pd.DataFrame({
-                'process_time': [0.0, 1.0, 2.0],
-                'Large values [-]': [1e6, 1e7, 1e8]
-            })
+            test_df = pd.DataFrame(
+                {"process_time": [0.0, 1.0, 2.0], "Large values [-]": [1e6, 1e7, 1e8]}
+            )
 
-            visualizer.plot_selected_parameters(test_df, ['Large values [-]'])
+            visualizer.plot_selected_parameters(test_df, ["Large values [-]"])
 
             # Should handle large values
-            plot_files = list(Path(tmpdir).glob('*.png'))
+            plot_files = list(Path(tmpdir).glob("*.png"))
             assert len(plot_files) == 1
