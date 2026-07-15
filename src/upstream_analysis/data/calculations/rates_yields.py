@@ -119,7 +119,6 @@ def calculate_rates_and_yields(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     v_corr_l = (
         pd.to_numeric(df_out.get("Volume corrected [mL]"), errors="coerce") / 1000.0
     )
-    v_unc_l = pd.to_numeric(df_out.get("Volume [mL]"), errors="coerce") / 1000.0
 
     biomass_g_l = _interp_series(
         df_out.get("Biomass [g/L]", pd.Series(index=df_out.index, dtype=float))
@@ -167,13 +166,6 @@ def calculate_rates_and_yields(df: pd.DataFrame, config: dict) -> pd.DataFrame:
             (protein_g_l * sample_vol_l).loc[is_sample].fillna(0.0)
         )
     sample_out_protein_cum = sample_out_protein_g.cumsum()
-
-    sample_out_biomass_g = pd.Series(0.0, index=df_out.index)
-    if biomass_g_l.notna().any():
-        sample_out_biomass_g.loc[is_sample] = (
-            (biomass_g_l * sample_vol_l).loc[is_sample].fillna(0.0)
-        )
-    sample_out_biomass_cum = sample_out_biomass_g.cumsum()
 
     feed_ml = pd.to_numeric(df_out.get("Feed [mL]", 0.0), errors="coerce").fillna(0.0)
     d_feed_ml = feed_ml.diff().fillna(0.0).clip(lower=0.0)
