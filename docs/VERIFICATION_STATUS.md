@@ -1,62 +1,42 @@
-# USP Improvements Verification Status
+# Verification
 
-## Verification Checklist
+How to check that the package works, and what the current state is.
 
-### Code Quality ✅
-- [x] Debug logging removed from production code
-- [x] Magic numbers extracted to constants
-- [x] Inconsistencies resolved
-- [x] Code formatting checked
+## Run the test suite
 
-### Testing ✅
-- [x] Unit tests for core calculations
-- [x] Integration tests for full pipeline
-- [x] Test fixtures with realistic data
-- [x] Coverage reporting configured
-
-### Documentation ✅
-- [x] Method docstrings with scientific context
-- [x] Configuration guide
-- [x] Examples documentation
-- [x] Improvements summary
-
-### Validation ✅
-- [x] Input validation infrastructure
-- [x] Custom exceptions
-- [x] Enhanced error messages
-- [x] Config structure validation
-
-## Backward Compatibility ✅
-- [x] All existing examples work
-- [x] Old config structure supported
-- [x] No breaking changes to APIs
-- [x] Default values preserved
-
-## Verification Commands
-
-### Quick Check
 ```bash
-python scripts/verify_improvements.py
+pytest                    # full suite (unit + integration)
+pytest tests/unit         # unit tests only
+pytest --cov=upstream_analysis   # with coverage (requires pytest-cov)
 ```
 
-### Run Tests
+Current status: **116 tests, all passing** (Python 3.12). Tests use in-memory
+fixtures defined in `tests/conftest.py`, so no data files are required.
+
+## Lint / format
+
 ```bash
-python scripts/run_all_tests.py
+black   src/ tests/ examples/
+isort   src/ tests/ examples/
+flake8  src/ tests/ examples/
 ```
 
-### Code Quality
-```bash
-python scripts/check_code_quality.py
-```
+Configuration lives in `pyproject.toml` (`[tool.black]`, `[tool.isort]`,
+`[tool.pytest.ini_options]`) and `.flake8`.
 
-### Test Examples
+## Run an example end-to-end
+
 ```bash
-cd examples/doe_example && python analyze_doe_run.py
 cd examples/real_data_example && python real_data_analysis.py
+cd examples/doe_example     && python analyze_doe_run.py
 ```
 
-## Success Criteria
-✅ All verification checks pass
-✅ Test coverage > 80% for critical modules
-✅ Examples produce identical results to baseline
-✅ No regression in functionality
+`real_data_example` ships its own `data/` and writes `processed_data.csv`,
+`samples_points_data.csv`, and per-parameter plots to `results/`.
+
+## Known limitations
+
+- There is no CI workflow yet, so verification is currently manual.
+- Test coverage is not measured/recorded continuously (`pytest-cov` is optional).
+- `scripts/verify_improvements.py` / `run_all_tests.py` / `check_code_quality.py`
+  exist but are thin wrappers; prefer the direct commands above.

@@ -88,7 +88,10 @@ class TestBioreactorParser:
         parser = BioreactorDataParser(sample_config)
 
         # Create temporary CSV file with test data
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='cp1252') as f:
+            # Real bioreactor CSVs start with a metadata line that the parser
+            # skips via parsing.bioreactor.skiprows (=1). Mirror that here.
+            f.write('Run metadata line (skipped by skiprows)\n')
             f.write('Time;Temperature [°C];Balance [g];Process phase [-]\n')
             f.write('0,0;37,0;5000,0;Batch\n')
             f.write('1,0;37,5;4950,0;Batch\n')
@@ -114,7 +117,10 @@ class TestBioreactorParser:
                 'Temperature [°C]': [37.0, 37.5, 38.0],
                 'Balance [g]': [5000.0, 4950.0, 4900.0]
             })
-            test_df.to_excel(f.name, index=False)
+            # Mirror real bioreactor files: reserve a metadata row (row 0) that
+            # the parser skips via header=skiprows (=1); header lands on row 1.
+            with pd.ExcelWriter(f.name, engine='openpyxl') as writer:
+                test_df.to_excel(writer, index=False, startrow=1)
             temp_path = f.name
 
         try:

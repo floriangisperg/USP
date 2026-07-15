@@ -111,6 +111,21 @@ class FermentationDataProcessor:
 
         # Determine config structure
         self.processing_config = self._get_processing_config()
+        self._validate_config()
+
+    def _validate_config(self) -> None:
+        """Fail fast on clearly invalid config values.
+
+        Only validates values that *are* present; missing optional config is
+        allowed so a processor can still be constructed and each calculation
+        can decide how to handle absent parameters.
+        """
+        reactor_setup = self.processing_config.get(self.reactor_setup_key, {}) or {}
+        if isinstance(reactor_setup, dict):
+            initial_volume = reactor_setup.get('initial_volume_ml', None)
+            if initial_volume is not None and initial_volume <= 0:
+                raise USPConfigError(
+                    f"Invalid initial_volume_ml: must be positive, got {initial_volume}.")
 
     def _get_processing_config(self) -> dict:
         """Get the processing config section, supporting both old and new structures."""
@@ -221,24 +236,26 @@ class FermentationDataProcessor:
             logger.warning(f"Processor: Missing required columns {required_cols}. Cannot calculate feed.")
             return df_out
 
-        try:
-            feed_density = validate_positive_numeric(
-                self._get_nested_param(
-                    [self.feed_def_key, 'feed_1', 'density_g_ml'],
-                    expected_type=float, is_required=True
-                ),
-                'feed_density_g_ml',
-                allow_zero=False
-            )
-            # Get median filter settings
-            cleaning_config = self.config.get('cleaning', {})
-            apply_filter = cleaning_config.get('median_filter', True)
-            median_window = cleaning_config.get('median_filter_window', 10)
-            median_threshold = cleaning_config.get('median_filter_threshold', 10)
-
-        except (USPConfigError, ValueError, TypeError) as e:
-            logger.error(f"Cannot calculate feed due to config error: {e}")
+        # Absent feed definitions (e.g. a pure batch run) -> skip feed calculation
+        # gracefully. An *invalid* feed density, however, must raise rather than
+        # be silently swallowed.
+        if not self.processing_config.get(self.feed_def_key):
+            logger.info("No feed definitions in config; skipping feed calculation.")
             return df_out
+
+        feed_density = validate_positive_numeric(
+            self._get_nested_param(
+                [self.feed_def_key, 'feed_1', 'density_g_ml'],
+                expected_type=float, is_required=True
+            ),
+            'feed_density_g_ml',
+            allow_zero=False
+        )
+        # Median filter settings (all optional with sensible defaults)
+        cleaning_config = self.config.get('cleaning', {})
+        apply_filter = cleaning_config.get('median_filter', True)
+        median_window = cleaning_config.get('median_filter_window', 10)
+        median_threshold = cleaning_config.get('median_filter_threshold', 10)
 
         balance_numeric = pd.to_numeric(df_out[balance_col], errors='coerce')
         if balance_numeric.isnull().all():
@@ -1325,6 +1342,12 @@ class FermentationDataProcessor:
         logger.info("Calculating carbon balance...")
         df_out = df.copy()
 
+        # Biomass is required for the carbon balance. Skip gracefully if absent
+        # (e.g. online-only data without offline measurements).
+        if 'Biomass [g/L]' not in df_out.columns:
+            logger.warning("Carbon balance skipped: 'Biomass [g/L]' column not found.")
+            return df_out
+
         # --- Get mass balance config ---
         # Support both new and old config structures
         mb_config = self.config.get('processing', {}).get('mass_balance_params', {})
@@ -1376,6 +1399,7 @@ class FermentationDataProcessor:
         try:
             product_props = _get_first(
                 [
+                    ['processing', 'processing_parameters', 'product_properties'],
                     ['processing_parameters', 'product_properties'],
                     ['processing', 'product_params'],
                 ],
@@ -1427,18 +1451,66 @@ class FermentationDataProcessor:
 
         dt_hours = df_out[time_col].diff().fillna(0)
 
+        # Glucose C-mol mass consistent with the media-config concentration basis
+        # (e.g. glucose monohydrate C6H12O6*H2O -> mw_g_mol / c_atoms). The
+        # substrate_properties value (30.03, anhydrous) must NOT be paired with a
+        # monohydrate concentration (440 g/L), or feed carbon is over-counted ~10%.
+        feed_glc_mw = _get_first(
+            [['analysis', 'delisa_media_config', 'feed_1', 'components', 'glucose', 'mw_g_mol']],
+            default=None,
+        )
+        feed_glc_catoms = _get_first(
+            [['analysis', 'delisa_media_config', 'feed_1', 'components', 'glucose', 'c_atoms_per_molecule']],
+            default=None,
+        )
+        if feed_glc_mw and feed_glc_catoms:
+            glucose_balance_cmol_g = float(feed_glc_mw) / float(feed_glc_catoms)
+        else:
+            glucose_balance_cmol_g = glucose_cmol_g  # fall back to anhydrous substrate value
+
+        # Capture where biomass is actually MEASURED (before interpolation fills the
+        # gaps). Used for the rigorous sample-point-only closure metric below.
+        measured_mask = pd.to_numeric(df_out['Biomass [g/L]'], errors='coerce').notna()
+
+        # Interpolate sparse offline quantities onto the high-frequency timeline so
+        # the running balance is meaningful between sample points (otherwise the
+        # biomass/product/glucose terms read 0 at non-sample rows).
+        # NOTE: between samples these are ESTIMATES, not measurements. The continuous
+        # closure built on them is a smoothed diagnostic; the assumption-free closure
+        # is 'C recovered (measured) [%]' reported only at sample timestamps.
+        def _interp_offline(colname, log=False):
+            if colname not in df_out.columns:
+                return None
+            s = pd.to_numeric(df_out[colname], errors='coerce')
+            if s.notna().sum() < 2:
+                return s
+            if log and (s[s > 0].size >= 2):
+                # log-linear (exponential) interpolation: respects growth kinetics
+                # (dX/dt = mu*X) far better than a straight line for biomass.
+                log_s = pd.Series(np.nan, index=s.index, dtype=float)
+                pos = s > 0
+                log_s.loc[pos] = np.log(s.loc[pos])
+                log_s = log_s.interpolate(method='linear', limit_direction='both').ffill().bfill()
+                return np.exp(log_s)
+            return s.interpolate(method='linear', limit_direction='both').ffill().bfill()
+
+        biomass_g_l = _interp_offline('Biomass [g/L]', log=True)
+        protein_g_l = _interp_offline('Protein [g/L]')
+        acetate_g_l = _interp_offline('Acetate [g/L]')
+        glucose_g_l = _interp_offline('Glucose [g/L]')
+
         # --- Carbon INPUTS ---
 
         # 1. Carbon from feed (cumulative)
-        # Feed [mL] × feed_conc (g/L) / glucose_cmol_g (g/C-mol) = C-mol from feed
+        # Feed [mL] × feed_conc (g/L) / glucose_balance_cmol_g = C-mol from feed
         # NOTE: Feed [mL] is already a cumulative value, so we do NOT apply cumsum() again
         feed_ml = pd.to_numeric(df_out['Feed [mL]'], errors='coerce')
         feed_g = feed_ml * feed_conc_g_l / 1000.0  # Convert mL to L
-        df_out['C from feed [C-mol]'] = feed_g / glucose_cmol_g
+        df_out['C from feed [C-mol]'] = feed_g / glucose_balance_cmol_g
 
         # 2. Initial glucose from batch medium
         initial_volume_l = initial_volume_ml / 1000.0
-        initial_c_mol = initial_volume_l * initial_glucose_g_l / glucose_cmol_g
+        initial_c_mol = initial_volume_l * initial_glucose_g_l / glucose_balance_cmol_g
         df_out['C from batch [C-mol]'] = initial_c_mol
 
         # Total carbon in
@@ -1454,15 +1526,14 @@ class FermentationDataProcessor:
         co2_production_rate_c_mol_h = cer_mmol_l_h * volume_l / MMOL_PER_MOL  # C-mol/h
         df_out['C from CO2 [C-mol]'] = (co2_production_rate_c_mol_h * dt_hours).cumsum()
 
-        # 2. Biomass carbon
-        # Biomass [g/L] × Volume [L] / biomass_cmol_g = C-mol biomass (current amount in reactor)
-        biomass_g_l = pd.to_numeric(df_out['Biomass [g/L]'], errors='coerce')
+        # 2. Biomass carbon (interpolated onto timeline; current amount in reactor)
+        if biomass_g_l is None:
+            biomass_g_l = pd.Series(np.nan, index=df_out.index)
         biomass_c_mol_in_reactor = biomass_g_l * volume_l / biomass_cmol_g
         df_out['C in biomass [C-mol]'] = biomass_c_mol_in_reactor
 
         # 3. Product carbon (if available)
-        if 'Protein [g/L]' in df_out.columns and product_cmol_g is not None:
-            protein_g_l = pd.to_numeric(df_out['Protein [g/L]'], errors='coerce')
+        if protein_g_l is not None and product_cmol_g is not None:
             product_c_mol_in_reactor = protein_g_l * volume_l / product_cmol_g
             df_out['C in product [C-mol]'] = product_c_mol_in_reactor
         else:
@@ -1471,16 +1542,14 @@ class FermentationDataProcessor:
             logger.info("Product carbon not calculated (no product data or composition)")
 
         # 4. Acetate carbon (if available)
-        if 'Acetate [g/L]' in df_out.columns:
-            acetate_g_l = pd.to_numeric(df_out['Acetate [g/L]'], errors='coerce')
+        if acetate_g_l is not None:
             df_out['C in acetate [C-mol]'] = acetate_g_l * volume_l / acetate_cmol_g
         else:
             df_out['C in acetate [C-mol]'] = 0.0
             logger.info("Acetate carbon not calculated (no acetate data)")
 
-        # 5. Residual glucose carbon (if available)
-        if 'Glucose [g/L]' in df_out.columns:
-            glucose_g_l = pd.to_numeric(df_out['Glucose [g/L]'], errors='coerce')
+        # 5. Residual glucose carbon (offline assay reports anhydrous glucose)
+        if glucose_g_l is not None:
             df_out['C residual glucose [C-mol]'] = glucose_g_l * volume_l / glucose_cmol_g
         else:
             df_out['C residual glucose [C-mol]'] = 0.0
@@ -1488,7 +1557,12 @@ class FermentationDataProcessor:
 
         # --- Carbon BALANCE ---
         # Account for cumulative removals from sampling to build a cumulative balance.
-        sample_vol_ml = pd.to_numeric(df_out.get('Sample volume [mL]', 0.0), errors='coerce').fillna(0.0)
+        _sample_vol = df_out.get('Sample volume [mL]')
+        if isinstance(_sample_vol, pd.Series):
+            sample_vol_ml = pd.to_numeric(_sample_vol, errors='coerce').fillna(0.0)
+        else:
+            # Column absent -> df.get returns the default scalar; treat as no sampling.
+            sample_vol_ml = pd.Series(0.0, index=df_out.index)
         is_sample = df_out.get('is_sample', False)
         if isinstance(is_sample, pd.Series):
             is_sample = is_sample.fillna(False).astype(bool)
@@ -1559,6 +1633,12 @@ class FermentationDataProcessor:
         # Limit to reasonable range for display
         df_out['C recovered [%]'] = df_out['C recovered [%]'].clip(lower=0, upper=200)
         df_out['C balance closure [%]'] = df_out['C balance closure [%]'].clip(lower=0, upper=200)
+
+        # Rigorous, assumption-free closure: the closure value ONLY at timestamps
+        # where biomass is actually measured (sample points). Between samples the
+        # continuous closure above relies on interpolation, so it is NOT an
+        # independent mass-balance check; this column is.
+        df_out['C recovered (measured) [%]'] = df_out['C recovered [%]'].where(measured_mask)
 
         logger.info("Calculated carbon balance (C_in, C_out, closure).")
         return df_out
@@ -1727,7 +1807,12 @@ class FermentationDataProcessor:
         glucose_g_l = _interp_series(df_out.get('Glucose [g/L]', pd.Series(index=df_out.index, dtype=float)))
         glucose_g = glucose_g_l * v_corr_l
 
-        sample_vol_ml = pd.to_numeric(df_out.get('Sample volume [mL]', 0.0), errors='coerce').fillna(0.0)
+        _sample_vol = df_out.get('Sample volume [mL]')
+        if isinstance(_sample_vol, pd.Series):
+            sample_vol_ml = pd.to_numeric(_sample_vol, errors='coerce').fillna(0.0)
+        else:
+            # Column absent -> df.get returns the default scalar; treat as no sampling.
+            sample_vol_ml = pd.Series(0.0, index=df_out.index)
         is_sample = df_out.get('is_sample', False)
         if isinstance(is_sample, pd.Series):
             is_sample = is_sample.fillna(False).astype(bool)

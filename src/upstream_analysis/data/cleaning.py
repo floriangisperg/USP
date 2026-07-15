@@ -154,16 +154,24 @@ class FermentationDataCleaner:
 
                 median_values = result_df[col_name].rolling(window=self.median_window, center=True,
                                                             min_periods=1).median()
-                diff = np.abs(result_df[col_name] - median_values)
-                # Calculate MAD robustly, ignoring NaNs
-                mad = (diff.rolling(window=self.median_window, center=True, min_periods=1)
-                       .apply(lambda x: x.median(), raw=True))  # Calculate median ignoring NaNs in window
-                mad = mad * MAD_TO_SIGMA_SCALE  # Scale MAD to approximate standard deviation
-                mad.replace(0, np.nan, inplace=True)  # Avoid division by zero MAD
+                diff = (result_df[col_name] - median_values).abs()
+                # Global robust scale: median absolute deviation of the residuals
+                # over the whole column. A rolling MAD is a poor scale estimator
+                # here because a spike inflates its own local window, so isolated
+                # spikes would never be flagged.
+                global_mad = np.nanmedian(diff) * MAD_TO_SIGMA_SCALE
+                if not np.isfinite(global_mad) or global_mad <= 0:
+                    global_mad = np.nan  # No variation -> nothing to flag
+                mask = (diff > self.median_threshold * global_mad) & np.isfinite(global_mad)
 
-                mask = (diff > self.median_threshold * mad) & mad.notna()
+                # Guard: at the edges a small window can yield a median that is
+                # itself contaminated by a neighbouring spike. Don't replace a
+                # value if doing so would move it further from the bulk of the data.
+                global_median = result_df[col_name].median()
+                worse = (median_values - global_median).abs() > (result_df[col_name] - global_median).abs()
+                mask = mask & ~worse.fillna(False)
+
                 spikes_found = mask.sum()
-
                 if spikes_found > 0:
                     # Replace spikes with the rolling median
                     result_df.loc[mask, col_name] = median_values[mask]
@@ -176,7 +184,12 @@ class FermentationDataCleaner:
         return result_df
 
     def _calculate_process_time(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculates 'Process time [h]' in hours, relative to the first row of the cleaned data."""
+        """Calculates 'Process time [h]' in hours, relative to the first row of the cleaned data.
+
+        Prefers 'Batch time [s]' when present. Falls back to the UTC/local
+        datetime columns (elapsed hours from the first timestamp) when the batch
+        time column is unavailable.
+        """
         result_df = df.copy()
         # Use Batch time [s] as the source - ensure this mapping is correct in default_config
         time_col_sec = 'Batch time [s]'
@@ -190,12 +203,22 @@ class FermentationDataCleaner:
                 result_df['Process time [h]'] = (time_numeric - first_valid_time_sec) / SEC_PER_HOUR
                 logger.info(
                     f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec.")
-            else:
-                logger.warning(
-                    f"Column '{time_col_sec}' contains only NaNs or non-numeric data. Cannot calculate process time.")
-                result_df['Process time [h]'] = np.nan
-        else:
-            logger.warning(f"Column '{time_col_sec}' not found. Cannot calculate process time.")
-            result_df['Process time [h]'] = np.nan
+                return result_df
+            logger.warning(
+                f"Column '{time_col_sec}' contains only NaNs or non-numeric data. Falling back to datetime.")
 
+        # Fallback: derive elapsed hours from a datetime column
+        dt_col = next((c for c in ('date_time_utc', 'date_time_local') if c in result_df.columns), None)
+        if dt_col is not None:
+            dt = pd.to_datetime(result_df[dt_col], errors='coerce')
+            if dt.notna().any():
+                first_dt = dt.dropna().iloc[0]
+                result_df['Process time [h]'] = (dt - first_dt).dt.total_seconds() / SEC_PER_HOUR
+                logger.info(f"Process time calculated from '{dt_col}' relative to {first_dt}.")
+                return result_df
+            logger.warning(f"Datetime column '{dt_col}' contains only NaTs. Cannot calculate process time.")
+        else:
+            logger.warning(f"Column '{time_col_sec}' or a datetime column not found. Cannot calculate process time.")
+
+        result_df['Process time [h]'] = np.nan
         return result_df

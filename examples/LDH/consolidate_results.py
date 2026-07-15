@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 import logging
 import numpy as np
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ def consolidate_ldh_results():
     # Initialize dictionary to store dataframes
     all_data = {}
     all_time_data = {}
+    all_samples = {}  # sparse: per-run sample-point rows
 
     # Process each run
     for run_dir in run_dirs:
@@ -165,6 +167,7 @@ def consolidate_ldh_results():
 
             all_data[run_name] = all_df
             all_time_data[run_name] = all_df
+            all_samples[run_name] = sample_df  # may be None/empty
             sample_count = len(sample_df) if sample_df is not None else 0
             logger.info(f"Processed {len(all_df)} rows from {run_name} ({sample_count} sample points)")
         else:
@@ -225,12 +228,42 @@ def consolidate_ldh_results():
 
         # 2. Summary statistics per run
         logger.info("Creating run summary sheet...")
+
+        # Parse nominal setpoints (qs, T) from each run_config.yaml induction_summary
+        conditions = {}
+        for run_dir in run_dirs:
+            qs = None
+            t_set = None
+            cfg_path = run_dir / 'run_config.yaml'
+            if cfg_path.exists():
+                try:
+                    txt = cfg_path.read_text(encoding='utf-8')
+                    m_qs = re.search(r'induction_summary:.*?qs\s*=\s*([0-9.]+)', txt, re.IGNORECASE)
+                    m_t = re.search(r'induction_summary:.*?T\s*=\s*([0-9.]+)', txt, re.IGNORECASE)
+                    if m_qs:
+                        qs = float(m_qs.group(1))
+                    if m_t:
+                        t_set = float(m_t.group(1))
+                except Exception as e:
+                    logger.warning(f"Could not parse run_config for {run_dir.name}: {e}")
+            conditions[run_dir.name] = {'qs_initial [g/g/h]': qs, 'T_setpoint [°C]': t_set}
+
         summary_data = []
         for run_name, df in all_time_data.items():
             if df.empty:
                 continue
 
             summary = {'run_name': run_name}
+            summary.update(conditions.get(run_name, {}))
+
+            # Measured induction temperature (median T while induced)
+            ind_col = find_column(df, 'Is induced [-]')
+            t_col = find_column(df, 'Temperature [°C]')
+            if ind_col and t_col:
+                ind_mask = pd.to_numeric(df[ind_col], errors='coerce').eq(1)
+                t_ind = pd.to_numeric(df.loc[ind_mask, t_col], errors='coerce').median()
+                if pd.notna(t_ind):
+                    summary['T_induction [°C]'] = round(float(t_ind), 1)
 
             # Get key metrics from all time points
             if 'Process time [h]' in df.columns:
@@ -255,6 +288,13 @@ def consolidate_ldh_results():
                 final_yield = df['Protein total yield [g/g]'].dropna()
                 if not final_yield.empty:
                     summary['final_yield'] = final_yield.iloc[-1]
+
+            # Rigorous (assumption-free) carbon closure: mean over measured timestamps
+            cm = find_column(df, 'C recovered (measured)')
+            if cm:
+                mvals = pd.to_numeric(df[cm], errors='coerce').dropna()
+                if not mvals.empty:
+                    summary['C recovered (measured) [%]_mean'] = mvals.mean()
 
             summary_data.append(summary)
 
@@ -289,6 +329,57 @@ def consolidate_ldh_results():
                 logger.error(f"Error saving sheet for {run_name}: {e}")
 
     logger.info(f"Successfully created consolidated Excel file: {output_file}")
+
+    # ============================================================
+    # Sparse consolidated file (sample points + endpoint summary)
+    # ============================================================
+    sparse_file = script_location / "LDH_consolidated_results_sparse.xlsx"
+    logger.info(f"Creating sparse consolidated file: {sparse_file}")
+
+    # Collect sample-point rows across all runs
+    sample_frames = []
+    for run_name, sdf in all_samples.items():
+        if sdf is None or len(sdf) == 0:
+            continue
+        sdf = sdf.copy()
+        sdf['run_name'] = run_name
+        sample_frames.append(sdf)
+
+    sample_key = [
+        'run_name', 'Process time [h]', 'Temperature [°C]', 'Is induced [-]', 'Induction time [h]',
+        'Biomass [g/L]', 'Glucose [g/L]',
+        'Protein soluble [g/L]', 'Protein IB [g/L]', 'Protein total calculated [g/L]',
+        'Soluble fraction [%]', 'IB fraction [%]',
+        'Protein soluble yield [g/g]', 'Protein IB yield [g/g]', 'Protein total yield [g/g]',
+        'Volume [mL]', 'Volume corrected [mL]', 'Feed [mL]',
+        'Offgas CO2 [%]', 'Offgas O2 [%]', 'pH [-]', 'pO2 [%]',
+    ]
+    if sample_frames:
+        all_samples_df = pd.concat(sample_frames, ignore_index=True)
+        all_samples_df = all_samples_df.sort_values(['run_name', 'Process time [h]'])
+        sp_cols = [find_column(all_samples_df, c) for c in sample_key]
+        sp_cols = [c for c in sp_cols if c is not None]
+        sample_out = all_samples_df[sp_cols]
+    else:
+        sample_out = pd.DataFrame()
+
+    # Endpoint summary per run (focused view) derived from Run_Summary + sample counts
+    n_samples = {rn: len(sdf) for rn, sdf in all_samples.items() if sdf is not None}
+    sparse_summary = summary_df.copy()
+    sparse_summary['num_samples'] = sparse_summary['run_name'].map(n_samples)
+    sparse_cols_pref = [
+        'run_name', 'T_induction [°C]', 'qs_initial [g/g/h]', 'T_setpoint [°C]', 'num_samples',
+        'total_time_h', 'Feed time [h]',
+        'Biomass [g/L]_final', 'Protein soluble [g/L]_final', 'Protein IB [g/L]_final',
+        'Protein total calculated [g/L]_final', 'final_yield',
+    ]
+    sparse_cols = [c for c in sparse_cols_pref if c in sparse_summary.columns]
+    sparse_summary_out = sparse_summary[sparse_cols]
+
+    with pd.ExcelWriter(sparse_file, engine='openpyxl') as writer:
+        sample_out.to_excel(writer, sheet_name='Sample_Points', index=False)
+        sparse_summary_out.to_excel(writer, sheet_name='Summary', index=False)
+    logger.info(f"Saved sparse file: {len(sample_out)} sample points, {len(sparse_summary_out)} runs -> {sparse_file}")
 
     # Print summary
     logger.info(f"\nLDH Consolidated Results Summary:")

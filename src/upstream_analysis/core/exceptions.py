@@ -1,7 +1,13 @@
-"""Custom exceptions for USP package."""
+"""Custom exceptions for USP package.
+
+All USP exceptions derive from ``ValueError`` because they ultimately signal an
+invalid value (a bad config setting, an invalid data point, or a value that
+broke a calculation). This lets callers catch them with ``except ValueError``
+while still being able to discriminate via the USP-specific subclasses.
+"""
 
 
-class USPError(Exception):
+class USPError(ValueError):
     """Base exception for USP package."""
 
     pass
