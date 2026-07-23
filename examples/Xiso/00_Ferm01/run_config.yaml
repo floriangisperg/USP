@@ -1,0 +1,109 @@
+# examples/Xiso/00_Ferm01/run_config.yaml
+# --- Xiso DoE | Ferm01 (high/high) ---
+# Gas/feed/medium values filled from Evaluation_F1X.xlsx 'General' sheet.
+# Search for "TODO" for values still to confirm.
+
+# ==================================================
+# 1. METADATA   (from General sheet)
+# ==================================================
+metadata:
+  fermentation_id: 'Xiso_Ferm1_high_high'
+  date_start: '2025-11-10'            # from export filename 20251110_*
+  strain: 'E. coli BL21DE3 (pET)'
+  reactor: 'MF2 R2'
+  media_base: 'DeLisa Glucose'
+  induction_summary: '1mM IPTG, qs=0.6, T=35°C, 8h'
+  media_config_file: 'delisa_media_config.yaml'
+
+# ==================================================
+# 1b. CLEANING
+# ==================================================
+# This run labeled the post-inoc batch growth (bt 0-6 h, pO2 ~83 = consuming O2)
+# as 'Preparation', so the default filter would discard the first 6 h and shift
+# Process time forward (which dropped the late samples). Rename it to 'Batch'
+# instead, so the full 0-29 h timeline and all 6 samples are kept.
+cleaning:
+  rename_preparation_to_batch: true
+
+# ==================================================
+# 2. COLUMN MAPPING   (optional override)
+# ==================================================
+# Online export headers already match default_config.yaml - no override needed.
+# column_mapping:
+#   'Some Different Header': standard_internal_name
+
+# ==================================================
+# 3. PROCESSING PARAMETERS
+# ==================================================
+processing:
+  processing_parameters:
+
+    balance_mode: 'feed_source'        # TODO: confirm 'Balance, g' tracks the FEED bottle (decreasing).
+                                       #   Sampling sheet shows separate 'Weight Feed [g]' (negative)
+                                       #   and 'Weight Reactor [ml]' (increasing) - verify which the
+                                       #   online Balance measures before trusting feed/volume output.
+
+    reactor_setup:
+      initial_volume_ml: 1100.0        # inoc Weight Reactor = 1100 mL (General: "1L (Batch)")
+
+    gas_params:                        # from General sheet
+      inlet_o2_mol_pct: 21.0           # x o2 in
+      inlet_co2_mol_pct: 0.04          # x co2 in
+      # inlet_h2o_mol_pct: 0.000476    # General xh2o ~0; wet/dry correction negligible -> default 0.0
+      # outlet O2 wet (reference, not consumed): 20.99 mol%   (xo2 wet)
+      air_flow_l_min: 0.116667         # airflow - fallback; online 'Air flow' time-series overrides
+      molar_volume_air_l_mol: 25.291   # mV (Molvolume air), valid at 35°C
+      molar_volume_temp_c: 35.0
+
+    feed_definitions:
+      feed_1:                          # feed linked to Pump4 (feed pump)
+        name: 'Glucose Feed'
+        density_g_ml: 1.15             # Density Feed Glucose
+        glucose:
+          concentration_g_l: 400.0     # Konc. Feed Glucose (read by rates/yields)
+
+    medium_definitions:
+      density_g_ml: 1.088              # Density Medium
+
+    base_titrant:                      # TODO: General "Molarity Base" was empty
+      compound: 'NH4OH'                # TODO confirm
+      molarity_mol_l: null             # TODO
+      density_g_ml: null               # TODO
+      pump_channel: 'Pump2'
+      total_added_g: 0
+
+    biomass:
+      pass   # default CH1.77N0.24O0.49, 26.565 g/C-mol
+
+    substrate_properties:
+      glucose:
+        molar_mass_g_c_mol: 30.026     # Molarity Substrate Glucose (anhydrous, 180.156/6)
+      acetate:
+        molar_mass_g_c_mol: 29.5
+
+    product_properties:                # XISO product (C1H1.53N0.29O0.3, 22.538 g/C-mol)
+      name: 'Xiso'
+      elemental_composition_c_mol:     # mol element per C-mol (gates product carbon in the C-balance)
+        C: 1.0
+        H: 1.53
+        N: 0.29
+        O: 0.3
+      molar_mass_g_c_mol: 22.538
+      nitrogen_content_gN_gP: 0.180    # = 0.29*14.007/22.538 (reference; not yet consumed by calcs)
+
+  induced_phases:
+    - 'induced Fedbatch'               # matches the Phase column in the online export
+
+# ==================================================
+# 4. MEDIA CONFIG OVERRIDE (per-run)
+# ==================================================
+# carbon_balance reads feed glucose concentration from the media config. Override
+# the standard 440 g/L for this run. Basis follows the media config (glucose
+# monohydrate); if your 400 g/L is reported anhydrous, also override
+# mw_g_mol (180.156) / c_atoms_per_molecule (6) here.
+analysis:
+  delisa_media_config:
+    feed_1:
+      components:
+        glucose:
+          concentration_g_l: 400.0     # Konc. Feed Glucose (overrides media-config 440)

@@ -5,6 +5,7 @@ from .data.cleaning import FermentationDataCleaner
 from .data.alignment import DataAligner
 from .data.processor import FermentationDataProcessor
 from .visualization.plotting import DataVisualizer # <-- ADD THIS
+from .visualization.dashboard import InteractiveDashboard
 
 __version__ = "0.1.0"
 
@@ -16,4 +17,5 @@ __all__ = [
     "DataAligner",
     "FermentationDataProcessor", # Add Processor
     "DataVisualizer",          # <-- ADD THIS
+    "InteractiveDashboard",
 ]

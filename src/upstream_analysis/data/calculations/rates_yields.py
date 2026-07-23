@@ -100,8 +100,15 @@ def calculate_rates_and_yields(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                     spline = UnivariateSpline(
                         t_unique, v_unique, k=spline_order, s=spline_s
                     )
-                    v_all = spline(t_all)
-                    return pd.Series(v_all, index=df_out.index)
+                    v_all = spline(t_all).astype(float)
+                    # Suppress non-physical extrapolation outside the measured
+                    # sample range: a cubic spline swings (often negative)
+                    # before the first / after the last sample. Hold the nearest
+                    # measured value (like np.interp) and clip at 0 since these
+                    # are concentrations (biomass/protein/glucose >= 0).
+                    v_all[t_all < t_unique[0]] = v_unique[0]
+                    v_all[t_all > t_unique[-1]] = v_unique[-1]
+                    return pd.Series(np.clip(v_all, 0.0, None), index=df_out.index)
                 logger.warning(
                     "Not enough points for spline interpolation, falling back to linear."
                 )
@@ -111,7 +118,7 @@ def calculate_rates_and_yields(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                 )
 
         v_all = np.interp(t_all, t_sorted, v_sorted)
-        return pd.Series(v_all, index=df_out.index)
+        return pd.Series(np.clip(v_all, 0.0, None), index=df_out.index)
 
     dt_h = time_h.diff().fillna(0.0)
     dt_h = dt_h.where(dt_h > 0, np.nan)
