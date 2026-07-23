@@ -16,7 +16,7 @@ print(f"Path exists: {src_path.exists()}")
 from upstream_analysis import (
     load_config, BioreactorDataParser, OfflineMeasurementsParser,
     FermentationDataCleaner, DataAligner, FermentationDataProcessor,
-    DataVisualizer
+    DataVisualizer, InteractiveDashboard
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -216,6 +216,15 @@ def analyze_single_run(run_name, script_location):
             parameters=plotable_parameters,
             time_col='Process time [h]'
         )
+
+        # 6b. Interactive HTML dashboard (one tabbed file; needs bokeh - skipped if absent)
+        try:
+            logger.info("Generating interactive HTML dashboard...")
+            InteractiveDashboard(output_dir, time_col='Process time [h]').plot_selected_parameters(
+                df_processed, parameters=plotable_parameters, run_name=run_name
+            )
+        except ImportError as e:
+            logger.warning(f"Skipped interactive dashboard (bokeh not installed): {e}")
 
         # 7. Save Results (xlsx only)
         logger.info(f"Saving results to: {output_dir}")

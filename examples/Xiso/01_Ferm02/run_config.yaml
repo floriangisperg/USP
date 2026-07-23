@@ -1,0 +1,93 @@
+# examples/Xiso/01_Ferm02/run_config.yaml
+# --- Xiso DoE | Ferm02 (low/low) ---
+# Gas/feed/medium values filled from Evaluation_F2X.xlsx 'General' sheet.
+# Search for "TODO" for values still to confirm.
+
+# ==================================================
+# 1. METADATA   (from General sheet)
+# ==================================================
+metadata:
+  fermentation_id: 'XISO_LowLow'
+  date_start: '2025-11-10'            # from export filename 20251110_*
+                                       #   NOTE: General sheet date was garbled ('34/04/2025') - verify
+  strain: 'E. coli BL21DE3 (pET)'
+  reactor: 'MF2 R3'
+  media_base: 'DeLisa Glucose'
+  induction_summary: '1mM IPTG, qs=0.2, T=25°C, 8h'
+  media_config_file: 'delisa_media_config.yaml'
+
+# ==================================================
+# 2. COLUMN MAPPING   (optional override)
+# ==================================================
+# Online export headers already match default_config.yaml - no override needed.
+# column_mapping:
+#   'Some Different Header': standard_internal_name
+
+# ==================================================
+# 3. PROCESSING PARAMETERS
+# ==================================================
+processing:
+  processing_parameters:
+
+    balance_mode: 'feed_source'        # TODO: confirm 'Balance, g' tracks the FEED bottle (decreasing)
+
+    reactor_setup:
+      initial_volume_ml: 1100.0        # 1L (Batch); verify inoc volume
+
+    gas_params:                        # from General sheet
+      inlet_o2_mol_pct: 21.0           # x o2 in
+      inlet_co2_mol_pct: 0.04          # x co2 in
+      # inlet_h2o_mol_pct: 0.0         # General xh2o = -0.000952 (nonphysical back-calc; clipped to 0)
+      # outlet O2 wet (reference, not consumed): 21.02 mol%   (xo2 wet)
+      air_flow_l_min: 0.116667         # airflow - fallback; online 'Air flow' time-series overrides
+      molar_volume_air_l_mol: 25.291   # mV (Molvolume air), valid at 35°C (per General)
+      molar_volume_temp_c: 35.0
+
+    feed_definitions:
+      feed_1:
+        name: 'Glucose Feed'
+        density_g_ml: 1.15             # Density Feed Glucose
+        glucose:
+          concentration_g_l: 400.0     # Konc. Feed Glucose (read by rates/yields)
+
+    medium_definitions:
+      density_g_ml: 1.088              # Density Medium
+
+    base_titrant:                      # TODO: General "Molarity Base" was empty
+      compound: 'NH4OH'                # TODO confirm
+      molarity_mol_l: null             # TODO
+      density_g_ml: null               # TODO
+      pump_channel: 'Pump2'
+      total_added_g: 0
+
+    biomass:
+      pass   # default CH1.77N0.24O0.49, 26.565 g/C-mol
+
+    substrate_properties:
+      glucose:
+        molar_mass_g_c_mol: 30.026     # Molarity Substrate Glucose (anhydrous, 180.156/6)
+      acetate:
+        molar_mass_g_c_mol: 29.5
+
+    product_properties:                # XISO product (C1H1.53N0.29O0.3, 22.538 g/C-mol)
+      name: 'Xiso'
+      elemental_composition_c_mol:     # mol element per C-mol (gates product carbon in the C-balance)
+        C: 1.0
+        H: 1.53
+        N: 0.29
+        O: 0.3
+      molar_mass_g_c_mol: 22.538
+      nitrogen_content_gN_gP: 0.180    # = 0.29*14.007/22.538 (reference; not yet consumed by calcs)
+
+  induced_phases:
+    - 'induced Fedbatch'               # matches the Phase column in the online export
+
+# ==================================================
+# 4. MEDIA CONFIG OVERRIDE (per-run)
+# ==================================================
+analysis:
+  delisa_media_config:
+    feed_1:
+      components:
+        glucose:
+          concentration_g_l: 400.0     # Konc. Feed Glucose (overrides media-config 440)

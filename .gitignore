@@ -60,6 +60,7 @@ examples/**/data/                 # raw experiment data dirs (also covered below
 *.svg
 *.pdf
 *.ipynb
+*.html
 
 # Consolidated / compiled data exports
 **/*consolidated*.xlsx

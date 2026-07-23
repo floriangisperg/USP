@@ -1,11 +1,45 @@
-import pandas as pd
-from pathlib import Path
 import logging
-import numpy as np
 import re
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+# Make the library importable when this script is run directly.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
+from upstream_analysis.visualization.dashboard import InteractiveDashboard  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Columns kept in the consolidated processed-modeling file (mechanistic-model
+# relevant subset). The per-run processed_data.xlsx still holds every column;
+# edit this list to add/remove columns from the consolidated export.
+MODEL_COLUMNS = [
+    # identity / time / phase
+    "run_name", "Process time [h]", "Process phase [-]", "Is induced [-]", "Induction time [h]", "is_sample",
+    # environment
+    "Temperature [°C]", "pH [-]", "pO2 [%]", "Stirrer speed [1/min]",
+    # gas flows + offgas (model inputs)
+    "Air flow [L/min]", "Total flow [L/min]", "O2 flow [L/min]", "Gas mix [-]",
+    "Inlet O2 [%]", "Inlet CO2 [%]", "Offgas O2 [%]", "Offgas CO2 [%]",
+    # offgas rates (derived)
+    "CER [mmol/L/h]", "OUR [mmol/L/h]", "RQ [-]", "qO2 [mmol/g/h]", "qCO2 [mmol/g/h]",
+    # feed / volume
+    "Feed [g]", "Feed [mL]", "Volume [mL]", "Volume corrected [mL]", "Base volume added [mL]",
+    "Feed rate exp [%]", "Feed rate ind [%]",
+    # biomass / substrate
+    "Biomass [g/L]", "Biomass total [g]", "Glucose [g/L]", "OD600 [-]",
+    "Glucose consumed [g]", "Glucose consumed rate [g/h]",
+    # kinetics
+    "mu [1/h]", "qS glucose [g/g/h]", "qP total [g/g/h]",
+    # protein
+    "Protein soluble [g/L]", "Protein IB [g/L]", "Protein total calculated [g/L]", "Protein total yield [g/g]",
+    # carbon balance (summary)
+    "C recovered [%]", "C balance closure [%]", "C recovered (measured) [%]",
+    "C to CO2 [% of fed]", "C to biomass [% of fed]", "C to product [% of fed]",
+]
 
 def find_column(df, target_col):
     """Find a column in dataframe, handling encoding issues with special characters.
@@ -97,6 +131,7 @@ def consolidate_ldh_results():
     all_data = {}
     all_time_data = {}
     all_samples = {}  # sparse: per-run sample-point rows
+    full_runs = {}    # full-timeline df per run, for the interactive dashboard
 
     # Process each run
     for run_dir in run_dirs:
@@ -133,6 +168,7 @@ def consolidate_ldh_results():
         if df is not None and not df.empty:
             # Add run identifier for consolidated analysis
             df['run_name'] = run_name
+            full_runs[run_name] = df.copy()  # full timeline for the dashboard
             all_df = df.copy()
 
             # Filter to keep only data from feed phase onwards (exclude batch phase)
@@ -380,6 +416,34 @@ def consolidate_ldh_results():
         sample_out.to_excel(writer, sheet_name='Sample_Points', index=False)
         sparse_summary_out.to_excel(writer, sheet_name='Summary', index=False)
     logger.info(f"Saved sparse file: {len(sample_out)} sample points, {len(sparse_summary_out)} runs -> {sparse_file}")
+
+    # ------------------------------------------------------------------
+    # Interactive comparison dashboard (runs overlaid, category + Functional tabs)
+    # ------------------------------------------------------------------
+    try:
+        InteractiveDashboard(script_location).plot_comparison(
+            full_runs, output_filename="LDH_consolidated_dashboard.html", max_points=800
+        )
+    except ImportError as e:
+        logger.warning(f"Skipped consolidated dashboard (bokeh not installed): {e}")
+
+    # ------------------------------------------------------------------
+    # All-columns, full-timeline consolidated file (for mechanistic modeling)
+    # Every processed column from every run, tagged with run_name, unfiltered.
+    # ------------------------------------------------------------------
+    processed_all = pd.concat(full_runs.values(), ignore_index=True)
+    processed_all = processed_all.sort_values(["run_name", "Process time [h]"])
+    keep = [c for c in MODEL_COLUMNS if c in processed_all.columns]
+    processed_file = script_location / "LDH_consolidated_results_processed.xlsx"
+    with pd.ExcelWriter(processed_file, engine="openpyxl") as writer:
+        processed_all[keep].to_excel(writer, sheet_name="All_Processed", index=False)
+    missing = [c for c in MODEL_COLUMNS if c not in processed_all.columns]
+    logger.info(
+        f"Saved processed-modeling file: {processed_file} "
+        f"({len(processed_all)} rows, {len(keep)} cols)"
+    )
+    if missing:
+        logger.warning(f"  requested MODEL_COLUMNS not present: {missing}")
 
     # Print summary
     logger.info(f"\nLDH Consolidated Results Summary:")
