@@ -244,6 +244,129 @@ class TestInductionCalculations:
                     "Induction timer should increase during induction"
 
 
+class TestInductionCorrection:
+    """Test the reference-time check/correction of the phase-based induction.
+
+    The fixture df has the phase flip to 'induced Fedbatch' at t = 5.0 h.
+    """
+
+    @pytest.fixture
+    def df_with_indicator(self, sample_bioreactor_with_base_df, sample_processor):
+        """Fixture df with the phase-based induction indicator applied."""
+        return sample_processor._add_induction_indicator(sample_bioreactor_with_base_df)
+
+    def test_no_reference_is_noop(self, df_with_indicator):
+        """Without any configured reference the df is returned unchanged."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        result = correct_induction_time(df_with_indicator, {'processing': {}})
+
+        pd.testing.assert_series_equal(
+            result['Is induced [-]'], df_with_indicator['Is induced [-]']
+        )
+
+    def test_scalar_reference_shifts_indicator(self, df_with_indicator):
+        """induction_time_h moves the induction start (phase flip 5.0 -> 6.5 h)."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        config = {'processing': {'induction_time_h': 6.5}}
+        result = correct_induction_time(df_with_indicator, config)
+
+        assert result.loc[result['Process time [h]'] == 5.0, 'Is induced [-]'].item() == 0
+        assert result.loc[result['Process time [h]'] == 6.0, 'Is induced [-]'].item() == 0
+        assert result.loc[result['Process time [h]'] == 7.0, 'Is induced [-]'].item() == 1
+
+    def test_scalar_reference_updates_existing_timer(self, df_with_indicator):
+        """An existing 'Induction time [h]' column is re-derived consistently."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        with_timer = df_with_indicator.copy()
+        with_timer['Induction time [h]'] = 0.0
+
+        config = {'processing': {'induction_time_h': 6.5}}
+        result = correct_induction_time(with_timer, config)
+
+        # Induced from 6.5 h: at t=7.0 the timer is 0.5 h; before it is 0.
+        assert result.loc[result['Process time [h]'] == 7.0, 'Induction time [h]'].item() == pytest.approx(0.5)
+        assert result.loc[result['Process time [h]'] == 6.0, 'Induction time [h]'].item() == 0
+
+    def test_reference_file(self, df_with_indicator, tmp_path):
+        """The operator's evaluation workbook supplies the reference time."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        # Mimic the 'Time-Rownr' layout: labelled rows, decimal 'Time' column.
+        events = pd.DataFrame([
+            ['Sample', 'Hour', 'Minute', 'Time', 'Row'],
+            [None, None, None, None, None],
+            ['Inoculation', 1, 14, 1.2333, 81],
+            ['S1', 6, 28, 6.4667, 392],
+            ['Induction', 6, 30, 6.5, 400],
+        ])
+        eval_file = tmp_path / 'Evaluation_T.xlsx'
+        events.to_excel(eval_file, sheet_name='Time-Rownr', header=False, index=False)
+
+        config = {'processing': {'induction_reference_file': str(eval_file)}}
+        result = correct_induction_time(df_with_indicator, config)
+
+        assert result.loc[result['Process time [h]'] == 7.0, 'Is induced [-]'].item() == 1
+        assert result.loc[result['Process time [h]'] == 6.0, 'Is induced [-]'].item() == 0
+
+    def test_reference_file_missing_entry_raises(self, df_with_indicator, tmp_path):
+        """A workbook without the labelled row raises USPDataError."""
+        from upstream_analysis.core.exceptions import USPDataError
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        events = pd.DataFrame([['Sample', 'Hour', 'Minute', 'Time']])
+        eval_file = tmp_path / 'Evaluation_T.xlsx'
+        events.to_excel(eval_file, sheet_name='Time-Rownr', header=False, index=False)
+
+        config = {'processing': {'induction_reference_file': str(eval_file)}}
+        with pytest.raises(USPDataError):
+            correct_induction_time(df_with_indicator, config)
+
+    def test_large_offset_warns(self, df_with_indicator, caplog):
+        """An offset beyond the tolerance logs a warning (correction still applied)."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        config = {'processing': {'induction_time_h': 8.0}}
+        with caplog.at_level('WARNING'):
+            result = correct_induction_time(df_with_indicator, config)
+
+        warnings = [r for r in caplog.records if 'Induction time check' in r.getMessage()]
+        assert warnings, "Large offset should produce a warning"
+        # Correction still applied (8.0 h is within the data range)
+        assert result.loc[result['Process time [h]'] == 8.0, 'Is induced [-]'].item() == 1
+        assert result.loc[result['Process time [h]'] == 7.0, 'Is induced [-]'].item() == 0
+
+    def test_offset_within_tolerance_does_not_warn(self, df_with_indicator, caplog):
+        """A small offset logs info only."""
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        config = {'processing': {'induction_time_h': 5.2}}
+        with caplog.at_level('WARNING'):
+            correct_induction_time(df_with_indicator, config)
+
+        warnings = [r for r in caplog.records if 'Induction time check' in r.getMessage()]
+        assert not warnings, "Offset within tolerance should not warn"
+
+    def test_reference_out_of_range_raises(self, df_with_indicator):
+        """A reference time outside the data range raises USPConfigError."""
+        from upstream_analysis.core.exceptions import USPConfigError
+        from upstream_analysis.data.calculations.induction import correct_induction_time
+
+        config = {'processing': {'induction_time_h': 99.0}}
+        with pytest.raises(USPConfigError):
+            correct_induction_time(df_with_indicator, config)
+
+    def test_processor_delegator(self, sample_processor, df_with_indicator):
+        """The processor delegator applies the configured correction."""
+        sample_processor.config['processing']['induction_time_h'] = 6.5
+        result = sample_processor._correct_induction_time(df_with_indicator)
+
+        assert result.loc[result['Process time [h]'] == 7.0, 'Is induced [-]'].item() == 1
+        assert result.loc[result['Process time [h]'] == 5.0, 'Is induced [-]'].item() == 0
+
+
 class TestGasExchangeCalculations:
     """Test gas exchange rate calculations."""
 

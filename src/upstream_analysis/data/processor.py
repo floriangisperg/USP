@@ -14,7 +14,7 @@ The processing order is critical and maintained by ``process_data``:
 1. Feed calculation (from balance data)
 2. Base titrant volume calculation
 3. Reactor volume calculation
-4. Induction detection and timing
+4. Induction detection, reference-time correction and timing
 5. Protein parameter calculation
 6. Inlet gas composition
 7. Off-gas rate calculation (CER, OUR, RQ)
@@ -105,6 +105,9 @@ class FermentationDataProcessor:
     def _add_induction_indicator(self, df: pd.DataFrame) -> pd.DataFrame:
         return induction.add_induction_indicator(df, self.config)
 
+    def _correct_induction_time(self, df: pd.DataFrame) -> pd.DataFrame:
+        return induction.correct_induction_time(df, self.config)
+
     def _add_induction_timer(self, df: pd.DataFrame) -> pd.DataFrame:
         return induction.add_induction_timer(df)
 
@@ -159,6 +162,7 @@ class FermentationDataProcessor:
         processed_df = self._calculate_base_flux_and_volume(processed_df)
         processed_df = self._calculate_volume(processed_df)
         processed_df = self._add_induction_indicator(processed_df)
+        processed_df = self._correct_induction_time(processed_df)
         processed_df = self._add_induction_timer(processed_df)
         processed_df = self._calculate_protein_parameters(processed_df)
         processed_df = self._calculate_inlet_gas_composition(processed_df)

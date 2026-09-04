@@ -104,6 +104,20 @@ processing:
     - 'induced Fedbatch'
     - 'Induced fed batch'
     - 'Production'
+  # Reference induction time (process-time hours). The SCADA phase transition
+  # into the induced phase can LEAD the physical inducer addition (manual IPTG
+  # bolus) by minutes to over an hour; set this to the operator-verified
+  # induction time to shift 'Is induced [-]' accordingly. A large offset from
+  # the phase flip is warned about (tolerance below).
+  induction_time_h: null
+  # Alternative to induction_time_h: read the operator-noted time from an
+  # evaluation workbook (sheet with a labelled event table; the 'Induction'
+  # row's decimal 'Time' column, same time zero as Process time [h]).
+  # induction_reference_file: 'Evaluation_F16.xlsx'
+  # induction_reference_sheet: 'Time-Rownr'
+  # induction_reference_label: 'Induction'
+  # Warn threshold for |reference - phase flip| [h]; correction applies regardless.
+  induction_time_tolerance_h: 0.25
   gas_params:
     o2_in_air_percent: 21.0      # O2 fraction in air (%)
     co2_in_air_percent: 0.04     # CO2 fraction in air (%)

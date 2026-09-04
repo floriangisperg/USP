@@ -261,6 +261,30 @@ induced_phases:
 
 **Purpose:** Marks time periods where induction is active for calculating induction-specific metrics.
 
+#### Induction Time Reference (optional)
+
+The process-control phase transition into the induced phase can **lead** the
+physical inducer addition: the recipe switches the phase (and feed profile)
+automatically, while IPTG is dosed manually afterwards. Observed offsets range
+from a few minutes to more than an hour (e.g. when the phase flips before the
+end-of-fedbatch sample is drawn). Two optional keys shift the induction start
+to the operator-verified moment:
+
+```yaml
+induction_time_h: 22.683                  # Reference induction time (process-time hours)
+# -- alternative to induction_time_h: read it from an evaluation workbook --
+induction_reference_file: 'Evaluation_F16.xlsx'
+induction_reference_sheet: 'Time-Rownr'   # default
+induction_reference_label: 'Induction'    # row label in the sheet's first column
+induction_time_tolerance_h: 0.25          # warn threshold vs the phase flip [h]
+```
+
+**Behavior:** Without a reference, the detected phase-flip time is only logged.
+With a reference, `Is induced [-]` (and `Induction time [h]`) are re-derived
+from it; an offset beyond `induction_time_tolerance_h` produces a warning
+(the correction is applied regardless). A reference outside the data's time
+range raises `USPConfigError`.
+
 #### Filtering Settings
 
 ```yaml

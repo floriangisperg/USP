@@ -80,3 +80,9 @@ DEFAULT_MEDIAN_FILTER_THRESHOLD = 10
 
 # Temporal alignment tolerance for online/offline data matching
 DEFAULT_ALIGNMENT_TOLERANCE_HOURS = 0.02
+
+# Induction timing: the SCADA phase transition into the induced phase can lead
+# the physical inducer addition (manual IPTG bolus) by minutes to over an hour.
+# When a reference induction time is configured, warn if it differs from the
+# phase-flip time by more than this (hours); the correction is applied regardless.
+DEFAULT_INDUCTION_TIME_TOLERANCE_H = 0.25
