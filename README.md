@@ -107,8 +107,8 @@ raw files → Parser → Cleaner → Aligner → Processor → Visualizer → re
 | Parsing      | `data/parser.py`              | Ingest CSV (bioreactor) + Excel (offline)       |
 | Cleaning     | `data/cleaning.py`            | Spike removal, tare correction, time calc       |
 | Alignment    | `data/alignment.py`           | Merge online + offline by time                  |
-| Processing   | `data/processor.py`           | Derived parameters (feed, volume, gas, yields)  |
-| Visualization| `visualization/plotting.py`   | Time-series overview plots                      |
+| Processing   | `data/processor.py` (facade over `data/calculations/`) | Derived parameters (feed, volume, gas, yields) |
+| Visualization| `visualization/plotting.py`, `visualization/dashboard.py` | Time-series plots + interactive HTML dashboards |
 
 Supporting layers:
 
@@ -143,7 +143,7 @@ examples/<example>/<run>/
 ## Testing
 
 ```bash
-pytest                  # run the full suite (116 tests)
+pytest                  # run the full suite (136 tests)
 pytest --cov=upstream_analysis
 ```
 

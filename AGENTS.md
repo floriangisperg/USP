@@ -28,6 +28,7 @@ Plain pip fallback:
 ```bash
 pip install -e ".[dev]"       # runtime + dev deps
 pip install -e ".[modeling]"  # adds cma + catalax (parameter fitting only)
+pip install -e ".[dashboard]" # adds bokeh (interactive HTML dashboards)
 ```
 
 ### Running Examples
@@ -48,7 +49,7 @@ overview plots to a run-specific `results/` directory.
 ### Testing
 
 ```bash
-pytest                        # full suite (116 tests)
+pytest                        # full suite (136 tests)
 pytest tests/unit             # per-module unit tests only
 pytest --cov=upstream_analysis
 ```
@@ -61,7 +62,7 @@ tests/
 ├── conftest.py              # shared fixtures (configs, sample DataFrames)
 ├── fixtures/                # static config fixtures
 ├── unit/                    # test_parser, test_cleaning, test_alignment,
-│                            #   test_processor, test_visualization
+│                            #   test_processor, test_visualization, test_dashboard
 └── integration/             # test_full_pipeline (end-to-end)
 ```
 
@@ -90,11 +91,15 @@ Modular pipeline; each stage takes the merged config and returns a DataFrame.
    (`FermentationDataCleaner`).
 3. **Alignment** (`data/alignment.py`) — temporal merge of online + offline
    data (`DataAligner.merge_datasets` → `(df_merged, df_samples)`).
-4. **Processing** (`data/processor.py`) — derived parameters: feed, base,
-   volume, induction, protein, off-gas rates (CER/OUR/RQ), specific rates,
-   carbon balance, growth/product yields (`FermentationDataProcessor`).
-5. **Visualization** (`visualization/plotting.py`) — per-parameter time-series
-   plots (`DataVisualizer.plot_selected_parameters`).
+4. **Processing** (`data/processor.py` + `data/calculations/`) — derived
+   parameters: feed, base, volume, induction, protein, off-gas rates
+   (CER/OUR/RQ), specific rates, carbon balance, growth/product yields
+   (`FermentationDataProcessor`).
+5. **Visualization** — per-parameter time-series plots
+   (`visualization/plotting.py`, `DataVisualizer.plot_selected_parameters`)
+   and self-contained interactive HTML dashboards
+   (`visualization/dashboard.py`, `InteractiveDashboard`, optional `bokeh`
+   via the `dashboard` extra).
 
 Supporting layers under `core/`:
 
@@ -104,10 +109,15 @@ Supporting layers under `core/`:
 - `core/exceptions.py` — `USPError` hierarchy: `USPConfigError`,
   `USPDataError`, `USPCalculationError`.
 
-> Note: `data/processor.py` is the largest module (~1900 lines, one class with
-> ~15 calculation methods). A future refactor could split it into focused
-> submodules (feed, gas exchange, volume, induction, rates/yields, carbon
-> balance) — the test suite is the safety net for that.
+> Note: `data/processor.py` is a thin facade (~170 lines) over the focused
+> calculation modules in `data/calculations/` (`feed`, `volume`, `induction`,
+> `protein`, `gas`, `carbon_balance`, `rates_yields`; shared config access in
+> `_config`). `FermentationDataProcessor` keeps the historical API
+> (`process_data(df)` plus per-step `_<name>(df)` methods the unit tests
+> exercise) and delegates each step. The **order of steps in `process_data`
+> is load-bearing** (later calculations consume columns built earlier) —
+> preserve it when adding a calculation, and put the math in
+> `data/calculations/`, not in the facade.
 
 ### Configuration System
 
@@ -132,8 +142,9 @@ raw files → Parser → Cleaner → Aligner → Processor → Visualizer → re
 
 ### Key Components
 
-- **`FermentationDataProcessor`** — core calculations (feed, base, volume,
-  induction, protein, off-gas, carbon balance, rates/yields).
+- **`FermentationDataProcessor`** — facade orchestrating the
+  `data/calculations/` modules (feed, base, volume, induction, protein,
+  off-gas, carbon balance, rates/yields) in a fixed sequence.
 - **`FermentationDataCleaner`** — cleaning and process-time derivation.
 - **`BioreactorDataParser`** / **`OfflineMeasurementsParser`** — CSV/Excel
   parsing with configurable separators and date formats.
