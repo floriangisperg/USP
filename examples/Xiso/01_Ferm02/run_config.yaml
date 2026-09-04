@@ -27,6 +27,11 @@ metadata:
 # 3. PROCESSING PARAMETERS
 # ==================================================
 processing:
+  # Real induction time (process-time hours), from the operator's
+  # evaluation workbook (data/Evaluation_F2X.xlsx, sheet 'Time-Rownr'). The SCADA phase
+  # flip into the induced phase leads the manual IPTG bolus; this
+  # reference shifts 'Is induced [-]' to the true induction moment.
+  induction_time_h: 21.1167
   processing_parameters:
 
     balance_mode: 'feed_source'        # TODO: confirm 'Balance, g' tracks the FEED bottle (decreasing)
