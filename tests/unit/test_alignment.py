@@ -165,7 +165,7 @@ class TestDataAligner:
 
         # Should return online data with is_sample = False
         assert "is_sample" in merged.columns
-        assert (merged["is_sample"] == False).all()
+        assert merged["is_sample"].eq(False).all()
         assert samples.empty
 
     def test_alignment_with_empty_offline_data(self):
@@ -190,7 +190,7 @@ class TestDataAligner:
 
         # Should return online data with is_sample = False
         assert "is_sample" in merged.columns
-        assert (merged["is_sample"] == False).all()
+        assert merged["is_sample"].eq(False).all()
         assert samples.empty
 
     def test_alignment_multiple_samples_same_time(self):

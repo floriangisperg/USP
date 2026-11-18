@@ -1,8 +1,7 @@
 # src/upstream_analysis/data/alignment.py
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -44,7 +43,8 @@ class DataAligner:
             or self.offline_time_col not in offline_df.columns
         ):
             raise KeyError(
-                f"Required time columns ('{self.online_time_col}', '{self.offline_time_col}') not found."
+                f"Required time columns ('{self.online_time_col}', "
+                f"'{self.offline_time_col}') not found."
             )
 
         online_clean[self.online_time_col] = pd.to_numeric(
@@ -167,7 +167,7 @@ class DataAligner:
                     )
                     if sample_count_std != len(offline_to_align):
                         logger.warning(
-                            f"Std alignment count differs from offline points attempted."
+                            "Std alignment count differs from offline points attempted."
                         )
                 else:
                     logger.info("No standard offline samples matched within tolerance.")
@@ -180,7 +180,8 @@ class DataAligner:
             # --- CORRECTED CHECK: Check using temp_merged IF it was populated ---
             already_matched = False
             if not temp_merged.empty and not best_match_temp_indices.empty:
-                # Check if the last offline time value exists among the successfully merged offline times in temp_merged
+                # Check if the last offline time value exists among the
+                # successfully merged offline times in temp_merged
                 matched_offline_times = temp_merged.loc[
                     best_match_temp_indices, offline_time_col_temp
                 ].dropna()
@@ -193,12 +194,17 @@ class DataAligner:
             if not already_matched:
                 last_online_index = online_sorted.index[-1]
                 logger.info(
-                    f"Forcing alignment of last offline sample (original time: {last_offline_time_val:.2f}h) to last online point (index {last_online_index}, time: {online_sorted.loc[last_online_index, self.online_time_col]:.2f}h)."
+                    f"Forcing alignment of last offline sample "
+                    f"(original time: {last_offline_time_val:.2f}h) to last "
+                    f"online point (index {last_online_index}, time: "
+                    f"{online_sorted.loc[last_online_index, self.online_time_col]:.2f}h)."
                 )
 
                 if last_online_index in best_match_indices:
                     logger.warning(
-                        f"Last online row (index {last_online_index}) was already matched by a different standard sample. Overwriting with forced last sample."
+                        f"Last online row (index {last_online_index}) was "
+                        "already matched by a different standard sample. "
+                        "Overwriting with forced last sample."
                     )
 
                 for col in offline_sorted.columns:
@@ -215,7 +221,8 @@ class DataAligner:
                 force_applied = True
             else:
                 logger.info(
-                    "Last offline sample was already matched during standard alignment. No forced alignment needed."
+                    "Last offline sample was already matched during standard "
+                    "alignment. No forced alignment needed."
                 )
 
         # --- Set Final 'is_sample' Column ---
@@ -243,7 +250,8 @@ class DataAligner:
         )
         if final_sample_count != len(offline_sorted):
             logger.warning(
-                f"Final sample count ({final_sample_count}) differs from original offline rows ({len(offline_sorted)})."
+                f"Final sample count ({final_sample_count}) differs from "
+                f"original offline rows ({len(offline_sorted)})."
             )
 
         logger.info(

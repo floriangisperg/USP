@@ -69,7 +69,8 @@ def calculate_base_flux_and_volume(df: pd.DataFrame, config: dict) -> pd.DataFra
         or duration_numeric.isnull().all()
     ):
         logger.warning(
-            f"Processor: Base duration '{duration_col}' not valid numeric or all NaN. Cannot calculate base volume."
+            f"Processor: Base duration '{duration_col}' not valid numeric or "
+            "all NaN. Cannot calculate base volume."
         )
         return df_out
 
@@ -101,7 +102,8 @@ def calculate_base_flux_and_volume(df: pd.DataFrame, config: dict) -> pd.DataFra
             return df_out
         duration_start_of_period = first_valid_duration.iloc[0]
         logger.warning(
-            f"NaN base duration at start index {first_phase_index}. Using first valid: {duration_start_of_period:.2f}s"
+            f"NaN base duration at start index {first_phase_index}. "
+            f"Using first valid: {duration_start_of_period:.2f}s"
         )
 
     duration_end_of_period = period_durations.dropna().iloc[-1]
@@ -110,7 +112,8 @@ def calculate_base_flux_and_volume(df: pd.DataFrame, config: dict) -> pd.DataFra
 
     if total_duration_s <= 0:
         logger.warning(
-            f"Total base pump duration during relevant phases ({total_duration_s}s) not positive. Base volume added set to 0."
+            f"Total base pump duration during relevant phases "
+            f"({total_duration_s}s) not positive. Base volume added set to 0."
         )
         return df_out
 
@@ -118,7 +121,8 @@ def calculate_base_flux_and_volume(df: pd.DataFrame, config: dict) -> pd.DataFra
         f"Base addition period indices: {first_phase_index} to {last_phase_index}."
     )
     logger.info(
-        f"Duration range within period: {duration_start_of_period:.2f}s to {duration_end_of_period:.2f}s. Total duration: {total_duration_s:.2f}s"
+        f"Duration range within period: {duration_start_of_period:.2f}s to "
+        f"{duration_end_of_period:.2f}s. Total duration: {total_duration_s:.2f}s"
     )
     logger.info(
         f"Total base added (config): {total_base_g:.2f} g = {total_base_ml:.2f} mL"
@@ -158,7 +162,8 @@ def calculate_base_flux_and_volume(df: pd.DataFrame, config: dict) -> pd.DataFra
 
     logger.info("Calculated 'Base volume added [mL]' column.")
     logger.debug(
-        f"Tail of Base volume added [mL] after calculation:\n{df_out['Base volume added [mL]'].tail()}"
+        "Tail of Base volume added [mL] after calculation:\n"
+        f"{df_out['Base volume added [mL]'].tail()}"
     )
     return df_out
 
@@ -258,7 +263,8 @@ def calculate_volume(df: pd.DataFrame, config: dict) -> pd.DataFrame:
             )
         else:
             logger.info(
-                "No valid 'Sample volume [mL]' data. 'Volume corrected [mL]' equals base 'Volume [mL]'."
+                "No valid 'Sample volume [mL]' data. 'Volume corrected [mL]' "
+                "equals base 'Volume [mL]'."
             )
             df_out["Volume corrected [mL]"] = df_out["Volume [mL]"].copy()
             df_out["Cumulative sample volume [mL]"] = 0.0

@@ -1,9 +1,8 @@
 # src/upstream_analysis/data/parser.py
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Union
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,8 @@ class BioreactorDataParser:
             return renamed_df
         else:
             logger.warning(
-                "No matching keys found between config mapping and data columns. No columns renamed."
+                "No matching keys found between config mapping and data "
+                "columns. No columns renamed."
             )
             return df  # Return original df if no keys matched
 
@@ -66,7 +66,8 @@ class BioreactorDataParser:
                     )
                 except ValueError:  # Try without format if specified one failed
                     logger.warning(
-                        f"Format '{date_format_to_use}' failed for '{col}'. Attempting default parsing."
+                        f"Format '{date_format_to_use}' failed for '{col}'. "
+                        "Attempting default parsing."
                     )
                     result_df[col] = pd.to_datetime(result_df[col], errors="coerce")
                 except Exception as e:
@@ -103,7 +104,8 @@ class BioreactorDataParser:
 
                     result_df[col] = pd.to_numeric(series_to_convert, errors="coerce")
                     logger.debug(
-                        f"Attempted numeric conversion for column '{col}' (original dtype: {original_dtype})"
+                        f"Attempted numeric conversion for column '{col}' "
+                        f"(original dtype: {original_dtype})"
                     )
                 except Exception as e:
                     logger.debug(
@@ -130,7 +132,7 @@ class BioreactorDataParser:
             elif file_path.suffix.lower() in [".xlsx", ".xls"]:
                 # Parse Excel file - use first sheet
                 df = pd.read_excel(file_path, sheet_name=0, header=self.skiprows)
-                logger.info(f"Reading Excel online data file, using first sheet")
+                logger.info("Reading Excel online data file, using first sheet")
             else:
                 raise ValueError(
                     f"Unsupported online data file format: {file_path.suffix}"
@@ -163,7 +165,6 @@ class OfflineMeasurementsParser:
         self.sheet_name = self.parser_config.get("sheet_name", 0)
 
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        mapping = {}
         # Create mapping from raw headers to standard names
         correct_mapping = {}
         for raw_header, standard_name in self.col_map_config.items():
@@ -202,9 +203,9 @@ class OfflineMeasurementsParser:
             if col != "process_time" and not pd.api.types.is_numeric_dtype(
                 result_df[col]
             ):
-                original_dtype = result_df[col].dtype
                 try:
-                    # Convert potential non-string types (like numbers read as objects) to string first
+                    # Convert potential non-string types (like numbers read as
+                    # objects) to string first
                     series_to_convert = result_df[col].astype(str)
 
                     # Handle potential different decimal separators if needed based on config
@@ -222,7 +223,8 @@ class OfflineMeasurementsParser:
 
                 except Exception as e:
                     logger.debug(
-                        f"Could not convert offline column {col} to numeric: {e}. Keeping original dtype."
+                        f"Could not convert offline column {col} to numeric: "
+                        f"{e}. Keeping original dtype."
                     )
 
         return result_df

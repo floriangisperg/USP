@@ -7,7 +7,10 @@ the USP package.
 """
 
 from . import exceptions, validation
-from .constants import (  # Physical constants; Gas compositions; Molar masses; Unit conversions; Process defaults; Signal processing defaults
+
+# Physical constants; Gas compositions; Molar masses; Unit conversions;
+# Process defaults; Signal processing defaults
+from .constants import (
     ACETATE_MOLAR_MASS_G_PER_C_MOL,
     BIOMASS_MOLAR_MASS_G_PER_C_MOL,
     CO2_IN_AIR_PERCENT,

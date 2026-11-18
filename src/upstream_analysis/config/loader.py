@@ -2,7 +2,7 @@
 import logging
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 import yaml
 

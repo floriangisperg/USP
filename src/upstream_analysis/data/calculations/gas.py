@@ -74,7 +74,7 @@ def calculate_inlet_gas_composition(df: pd.DataFrame, config: dict) -> pd.DataFr
                 break
         else:
             logger.warning(
-                f"Air flow column not found. Cannot calculate inlet gas composition."
+                "Air flow column not found. Cannot calculate inlet gas composition."
             )
             return df_out
 
@@ -91,7 +91,7 @@ def calculate_inlet_gas_composition(df: pd.DataFrame, config: dict) -> pd.DataFr
                 break
         else:
             logger.warning(
-                f"O2 flow column not found. Cannot calculate inlet gas composition."
+                "O2 flow column not found. Cannot calculate inlet gas composition."
             )
             return df_out
 
@@ -175,7 +175,7 @@ def calculate_offgas_rates(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                 break
         else:
             logger.warning(
-                f"Total flow column not found. Cannot calculate offgas rates."
+                "Total flow column not found. Cannot calculate offgas rates."
             )
             return df_out
 
@@ -186,11 +186,11 @@ def calculate_offgas_rates(df: pd.DataFrame, config: dict) -> pd.DataFrame:
         return df_out
 
     if co2_out_col not in df_out.columns:
-        logger.warning(f"CO2 outlet column not found. Cannot calculate CER.")
+        logger.warning("CO2 outlet column not found. Cannot calculate CER.")
         calculate_cer = False
 
     if o2_out_col not in df_out.columns:
-        logger.warning(f"O2 outlet column not found. Cannot calculate OUR.")
+        logger.warning("O2 outlet column not found. Cannot calculate OUR.")
         calculate_our = False
 
     # --- Get numeric values ---

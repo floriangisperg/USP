@@ -89,7 +89,8 @@ def get_nested_param(
                     raise USPConfigError(msg)
                 else:
                     logger.debug(
-                        f"Optional config parameter not found at path: {path_str}. Using default: {default}"
+                        f"Optional config parameter not found at path: "
+                        f"{path_str}. Using default: {default}"
                     )
                     return default
         else:  # Path is broken

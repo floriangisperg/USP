@@ -1,6 +1,5 @@
 """Tests for core processing calculations."""
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -897,7 +896,7 @@ class TestEdgeCases:
 
         # Should raise error for negative volume
         with pytest.raises(ValueError):
-            processor = FermentationDataProcessor(config)
+            FermentationDataProcessor(config)
 
     def test_single_row_dataframe(self, minimal_config):
         """Test processing with single row of data."""

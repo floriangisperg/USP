@@ -10,12 +10,8 @@ import pytest
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from upstream_analysis.config.loader import load_config
-from upstream_analysis.data.parser import (
-    BioreactorDataParser,
-    OfflineMeasurementsParser,
-)
-from upstream_analysis.data.processor import FermentationDataProcessor
+from upstream_analysis.config.loader import load_config  # noqa: E402
+from upstream_analysis.data.processor import FermentationDataProcessor  # noqa: E402
 
 
 @pytest.fixture

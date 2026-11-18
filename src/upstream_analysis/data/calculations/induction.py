@@ -85,7 +85,8 @@ def add_induction_timer(df: pd.DataFrame) -> pd.DataFrame:
     # Check if induction indicator exists
     if "Is induced [-]" not in df_out.columns:
         logger.warning(
-            "Cannot add induction timer: 'Is induced [-]' column not found. Run add_induction_indicator first."
+            "Cannot add induction timer: 'Is induced [-]' column not found. "
+            "Run add_induction_indicator first."
         )
         df_out["Induction time [h]"] = 0.0
         return df_out

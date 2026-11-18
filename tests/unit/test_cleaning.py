@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from upstream_analysis.data.cleaning import FermentationDataCleaner
 
@@ -42,7 +41,7 @@ class TestDataCleaner:
 
     def test_preparation_phase_rename(self):
         """Test renaming of preparation phase."""
-        config = sample_config_with_rename = {
+        config = {
             "cleaning": {
                 "rename_preparation_to_batch": True,
                 "filter_preparation": False,

@@ -106,7 +106,7 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     balance_window = balance_filled[window_mask].dropna()
 
     if balance_window.empty:
-        logger.error(f"Cannot find valid balance readings in window after feed start.")
+        logger.error("Cannot find valid balance readings in window after feed start.")
         balance_at_tare_point = balance_filled.loc[first_feed_index]  # Fallback
         if pd.isna(balance_at_tare_point):
             logger.error(
@@ -121,7 +121,8 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
         balance_at_tare_point = balance_window.max()
         tare_index_approx = balance_window.idxmax()
         logger.info(
-            f"Using peak balance {balance_at_tare_point:.2f}g (near index {tare_index_approx}) as initial feed weight."
+            f"Using peak balance {balance_at_tare_point:.2f}g "
+            f"(near index {tare_index_approx}) as initial feed weight."
         )
 
     # --- Create Modified Balance Series ---
@@ -136,7 +137,8 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     # --- Apply Median Filter to Modified Balance ---
     if apply_filter:
         logger.info(
-            f"Applying median filter (window={median_window}, threshold={median_threshold}) to modified balance."
+            f"Applying median filter (window={median_window}, "
+            f"threshold={median_threshold}) to modified balance."
         )
         median_values = modified_balance.rolling(
             window=median_window, center=True, min_periods=1
@@ -185,7 +187,7 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 
     # Calculate Feed [mL]
     df_out["Feed [mL]"] = df_out["Feed [g]"] / feed_density
-    logger.info(f"Processor: Calculated Feed [g] and Feed [mL].")
+    logger.info("Processor: Calculated Feed [g] and Feed [mL].")
     logger.debug(f"Final Feed [g] calculated (Tail):\n{df_out['Feed [g]'].tail()}")
 
     return df_out

@@ -10,21 +10,19 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from upstream_analysis.config.loader import load_config
-from upstream_analysis.data.alignment import DataAligner
-from upstream_analysis.data.cleaning import FermentationDataCleaner
-from upstream_analysis.data.parser import (
+from upstream_analysis.data.alignment import DataAligner  # noqa: E402
+from upstream_analysis.data.cleaning import FermentationDataCleaner  # noqa: E402
+from upstream_analysis.data.parser import (  # noqa: E402
     BioreactorDataParser,
     OfflineMeasurementsParser,
 )
-from upstream_analysis.data.processor import FermentationDataProcessor
-from upstream_analysis.visualization.plotting import DataVisualizer
+from upstream_analysis.data.processor import FermentationDataProcessor  # noqa: E402
+from upstream_analysis.visualization.plotting import DataVisualizer  # noqa: E402
 
 
 class TestFullPipeline:
@@ -115,7 +113,8 @@ class TestFullPipeline:
             },
             "alignment": {
                 "online_time_col": "Process time [h]",
-                "offline_time_col": "Process time [h]",  # After column mapping, offline uses same name
+                # After column mapping, offline uses same name
+                "offline_time_col": "Process time [h]",
                 "tolerance_hours": 0.1,
                 "save_separate_samples_file": True,
                 "force_align_last_sample": True,
@@ -326,8 +325,8 @@ class TestFullPipeline:
             balance += np.random.randn() * 5
 
             row = [
-                f"20.06.2023 {8+i//12:02d}:{(i*5)%60:02d}:13",  # Date Time UTC
-                f"20.06.2023 {10+i//12:02d}:{(i*5)%60:02d}:13",  # Date Local Time
+                f"20.06.2023 {8+i//12:02d}:{(i*5) % 60:02d}:13",  # Date Time UTC
+                f"20.06.2023 {10+i//12:02d}:{(i*5) % 60:02d}:13",  # Date Local Time
                 f"{t*3600:.0f}",  # Batch Time, sec
                 f"{t*3600:.0f}",  # Batch Time (since inoc.), sec
                 phase,  # Phase

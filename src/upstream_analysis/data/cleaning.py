@@ -1,6 +1,5 @@
 # src/upstream_analysis/data/cleaning.py
 import logging
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -49,7 +48,8 @@ class FermentationDataCleaner:
         rename_prep = self.cleaning_config.get("rename_preparation_to_batch", False)
         filter_prep = self.cleaning_config.get("filter_preparation", True)
         logger.info(
-            f"Cleaning config flags: rename_prep={rename_prep}, filter_prep={filter_prep}, balance_mode='{balance_mode}'"
+            f"Cleaning config flags: rename_prep={rename_prep}, "
+            f"filter_prep={filter_prep}, balance_mode='{balance_mode}'"
         )
 
         if phase_col not in cleaned_df.columns:
@@ -137,7 +137,8 @@ class FermentationDataCleaner:
         """
         result_df = df.copy()
         logger.info(
-            f"Applying balance tare correction to columns: {self.balance_cols} (threshold={self.tare_threshold}g)."
+            f"Applying balance tare correction to columns: {self.balance_cols} "
+            f"(threshold={self.tare_threshold}g)."
         )
         for col_name in self.balance_cols:
             if col_name not in result_df.columns:
@@ -160,16 +161,20 @@ class FermentationDataCleaner:
                 or first_valid_index == balance_values.index[0]
                 and balance_values.iloc[0] <= self.tare_threshold
             ):
-                # Handle case where no value is above threshold or the first value is already above (no clear tare found)
+                # Handle case where no value is above threshold or the first
+                # value is already above (no clear tare found)
                 logger.warning(
-                    f"No clear tare point detected for '{col_name}' above threshold {self.tare_threshold}. Correction not applied, keeping original values."
+                    f"No clear tare point detected for '{col_name}' above "
+                    f"threshold {self.tare_threshold}. Correction not applied, "
+                    "keeping original values."
                 )
                 continue  # Don't modify the column if no tare detected
 
             # Set all values *before* this index to zero.
             result_df.loc[result_df.index < first_valid_index, col_name] = 0.0
             logger.info(
-                f"Applied tare correction for '{col_name}': Set values before index {first_valid_index} to 0."
+                f"Applied tare correction for '{col_name}': Set values before "
+                f"index {first_valid_index} to 0."
             )
 
         return result_df
@@ -180,7 +185,9 @@ class FermentationDataCleaner:
         """Applies rolling median filter to specified columns."""
         result_df = df.copy()
         logger.info(
-            f"Applying rolling median filter to columns: {columns_to_filter} (window={self.median_window}, threshold={self.median_threshold} MAD units)"
+            f"Applying rolling median filter to columns: {columns_to_filter} "
+            f"(window={self.median_window}, "
+            f"threshold={self.median_threshold} MAD units)"
         )
 
         for col_name in columns_to_filter:  # Use the passed list
@@ -229,7 +236,8 @@ class FermentationDataCleaner:
                     # Replace spikes with the rolling median
                     result_df.loc[mask, col_name] = median_values[mask]
                     logger.info(
-                        f"Replaced {spikes_found} spikes in '{col_name}' using rolling median filter."
+                        f"Replaced {spikes_found} spikes in '{col_name}' "
+                        "using rolling median filter."
                     )
                 else:
                     logger.info(f"No significant spikes detected in '{col_name}'.")
@@ -261,11 +269,13 @@ class FermentationDataCleaner:
                     time_numeric - first_valid_time_sec
                 ) / SEC_PER_HOUR
                 logger.info(
-                    f"Process time calculated relative to first timestamp's {time_col_sec} = {first_valid_time_sec:.2f} sec."
+                    f"Process time calculated relative to first timestamp's "
+                    f"{time_col_sec} = {first_valid_time_sec:.2f} sec."
                 )
                 return result_df
             logger.warning(
-                f"Column '{time_col_sec}' contains only NaNs or non-numeric data. Falling back to datetime."
+                f"Column '{time_col_sec}' contains only NaNs or non-numeric "
+                "data. Falling back to datetime."
             )
 
         # Fallback: derive elapsed hours from a datetime column
@@ -289,7 +299,8 @@ class FermentationDataCleaner:
             )
         else:
             logger.warning(
-                f"Column '{time_col_sec}' or a datetime column not found. Cannot calculate process time."
+                f"Column '{time_col_sec}' or a datetime column not found. "
+                "Cannot calculate process time."
             )
 
         result_df["Process time [h]"] = np.nan

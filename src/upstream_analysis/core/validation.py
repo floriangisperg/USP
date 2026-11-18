@@ -1,11 +1,11 @@
 """Input validation utilities for USP data processing."""
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, List
 
 import pandas as pd
 
-from .exceptions import USPConfigError, USPDataError
+from .exceptions import USPConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ def validate_dataframe_not_empty(df: pd.DataFrame, context: str = "") -> pd.Data
     """
     if df is None or df.empty:
         msg = (
-            f"DataFrame is empty or None"
+            "DataFrame is empty or None"
             if not context
             else f"DataFrame for {context} is empty or None"
         )

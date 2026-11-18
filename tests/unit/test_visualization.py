@@ -6,10 +6,12 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import pandas as pd
-import pytest
 
 matplotlib.use("Agg")  # Use non-interactive backend for testing
-from upstream_analysis.visualization.plotting import DataVisualizer, sanitize_filename
+from upstream_analysis.visualization.plotting import (  # noqa: E402
+    DataVisualizer,
+    sanitize_filename,
+)
 
 
 class TestSanitizeFilename:
@@ -79,7 +81,7 @@ class TestDataVisualizer:
         """Test that visualizer creates output directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "plots"
-            visualizer = DataVisualizer(output_path)
+            DataVisualizer(output_path)
             assert output_path.exists()
             assert output_path.is_dir()
 

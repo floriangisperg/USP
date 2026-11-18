@@ -36,7 +36,8 @@ def calculate_protein_parameters(df: pd.DataFrame) -> pd.DataFrame:
     orig_has_total = "Protein [g/L]" in df_out.columns
 
     logger.info(
-        f"Original protein data - Soluble: {orig_has_soluble}, IB: {orig_has_ib}, Total: {orig_has_total}"
+        f"Original protein data - Soluble: {orig_has_soluble}, "
+        f"IB: {orig_has_ib}, Total: {orig_has_total}"
     )
 
     # Always create both protein columns, filling missing ones with NaNs

@@ -106,7 +106,8 @@ class DataVisualizer:
                         )
                     else:
                         logger.info(
-                            f"Parameter '{param}' has no valid data points despite not being all NaNs. Skipping plot."
+                            f"Parameter '{param}' has no valid data points "
+                            "despite not being all NaNs. Skipping plot."
                         )
                         plt.close(fig)
                         continue
