@@ -40,7 +40,12 @@ python real_data_analysis.py
 
 # DOE example — analyze a specific fermentation run
 cd examples/doe_example
-python analyze_doe_run.py
+python analyze_doe_run.py ferm_01     # folder name is a CLI argument
+
+# hGH example — two runs + consolidated comparison
+cd examples/hgh
+python analyze_hgh_run.py R5_lowlow   # or R6_highhigh (default)
+python consolidate_results.py
 ```
 
 Each example writes `processed_data.csv`, `samples_points_data.csv`, and
@@ -167,8 +172,10 @@ examples/<example>/<run>/
 
 ## Notes for Contributors
 
-- When modifying analysis logic, focus on `data/processor.py` for derived
-  calculations and the config system for parameter changes.
+- Derived calculations live in `data/calculations/` (feed, volume, induction,
+  protein, gas, carbon_balance, rates_yields). Add new math there — the
+  `FermentationDataProcessor` facade in `data/processor.py` only orchestrates
+  the steps, in a load-bearing order.
 - Add physical constants to `core/constants.py` rather than inlining magic
   numbers.
 - Raise typed exceptions from `core/exceptions.py` and validate inputs with

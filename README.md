@@ -93,6 +93,20 @@ DataVisualizer(output_dir).plot_selected_parameters(
 processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decimal=",")
 ```
 
+## Examples
+
+| Directory | What it shows |
+|---|---|
+| `examples/real_data_example/` | Minimal end-to-end run — ships its own `data/`, runnable as-is |
+| `examples/doe_example/` | 12 scFv DoE fermentation runs; `python analyze_doe_run.py ferm_01` analyzes one run. Consolidated raw exports live in `all_data/` |
+| `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high): analyze each run, then `consolidate_results.py` builds combined workbooks + a bokeh comparison dashboard |
+| `examples/LDH/` / `examples/Xiso/` | Per-product analyses: run scripts plus `consolidate_results.py` each |
+| `modeling_playground/` | Parameter-fitting sandbox (cma + catalax; `modeling` extra) — scratch work, **not tracked in git** |
+
+Experiment data (`examples/**/data/`, `results/`, `all_data/`) is gitignored
+and lives outside the repo; `real_data_example` intentionally ships its data
+via `git add -f`.
+
 ## Architecture
 
 A modular pipeline, each stage taking the merged config and returning a
