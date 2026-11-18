@@ -3,6 +3,7 @@
 Mirrors the style of test_visualization.py: inline DataFrames, stdlib
 TemporaryDirectory, no shared fixtures. Skips entirely when bokeh is absent.
 """
+
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def _sample_df(time_col="Process time [h]", n=6):
     return pd.DataFrame(
         {
             time_col: list(range(n)),
-            "CER [mmol/L/h]": [0.1 * i for i in range(n)],   # continuous
+            "CER [mmol/L/h]": [0.1 * i for i in range(n)],  # continuous
             "OUR [mmol/L/h]": [0.2 * i for i in range(n)],
             "RQ [-]": [1.0] * n,
             "Temperature [°C]": [37.0] * n,
@@ -35,7 +36,9 @@ def _sample_df(time_col="Process time [h]", n=6):
 class TestInteractiveDashboard:
     def test_single_run_produces_html(self):
         with tempfile.TemporaryDirectory() as td:
-            out = InteractiveDashboard(td).plot_selected_parameters(_sample_df(), run_name="F1")
+            out = InteractiveDashboard(td).plot_selected_parameters(
+                _sample_df(), run_name="F1"
+            )
             assert out is not None
             assert Path(out).exists()
             assert Path(out).suffix == ".html"
@@ -50,7 +53,9 @@ class TestInteractiveDashboard:
     def test_custom_time_col(self):
         df = _sample_df(time_col="Time [h]")
         with tempfile.TemporaryDirectory() as td:
-            out = InteractiveDashboard(td, time_col="Time [h]").plot_selected_parameters(df)
+            out = InteractiveDashboard(
+                td, time_col="Time [h]"
+            ).plot_selected_parameters(df)
             assert out is not None and Path(out).exists()
 
     def test_all_nan_column_skipped(self):

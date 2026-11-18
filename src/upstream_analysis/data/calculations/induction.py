@@ -247,9 +247,11 @@ def correct_induction_time(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 
     flip_time = _phase_flip_time(df_out)
     if flip_time is not None:
-        tolerance_h = float(processing.get(
-            "induction_time_tolerance_h", DEFAULT_INDUCTION_TIME_TOLERANCE_H
-        ))
+        tolerance_h = float(
+            processing.get(
+                "induction_time_tolerance_h", DEFAULT_INDUCTION_TIME_TOLERANCE_H
+            )
+        )
         offset_min = (reference_h - flip_time) * MIN_PER_HOUR
         message = (
             f"Induction reference {reference_h:.3f}h vs phase flip {flip_time:.3f}h "

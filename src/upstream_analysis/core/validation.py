@@ -1,9 +1,11 @@
 """Input validation utilities for USP data processing."""
-import pandas as pd
-import logging
-from typing import List, Optional, Any
 
-from .exceptions import USPDataError, USPConfigError
+import logging
+from typing import Any, List, Optional
+
+import pandas as pd
+
+from .exceptions import USPConfigError, USPDataError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,9 @@ class ConfigValidationError(ValidationError):
     pass
 
 
-def require_columns(df: pd.DataFrame, required_cols: List[str], context: str = "") -> pd.DataFrame:
+def require_columns(
+    df: pd.DataFrame, required_cols: List[str], context: str = ""
+) -> pd.DataFrame:
     """
     Validate that required columns exist in DataFrame.
 
@@ -43,7 +47,11 @@ def require_columns(df: pd.DataFrame, required_cols: List[str], context: str = "
     """
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
-        msg = f"Missing required columns {missing} for {context}" if context else f"Missing required columns: {missing}"
+        msg = (
+            f"Missing required columns {missing} for {context}"
+            if context
+            else f"Missing required columns: {missing}"
+        )
         logger.error(msg)
         raise DataFrameValidationError(msg)
     return df
@@ -64,13 +72,19 @@ def validate_dataframe_not_empty(df: pd.DataFrame, context: str = "") -> pd.Data
         DataFrameValidationError: If DataFrame is empty or None
     """
     if df is None or df.empty:
-        msg = f"DataFrame is empty or None" if not context else f"DataFrame for {context} is empty or None"
+        msg = (
+            f"DataFrame is empty or None"
+            if not context
+            else f"DataFrame for {context} is empty or None"
+        )
         logger.error(msg)
         raise DataFrameValidationError(msg)
     return df
 
 
-def validate_numeric_series(series: pd.Series, name: str, allow_empty: bool = False) -> pd.Series:
+def validate_numeric_series(
+    series: pd.Series, name: str, allow_empty: bool = False
+) -> pd.Series:
     """
     Validate series is numeric and contains valid data.
 
@@ -111,7 +125,9 @@ def coerce_float(value: Any, default: float, param_name: str = "") -> float:
         return float(value)
     except (TypeError, ValueError):
         if param_name:
-            logger.debug(f"Could not coerce '{param_name}' to float, using default: {default}")
+            logger.debug(
+                f"Could not coerce '{param_name}' to float, using default: {default}"
+            )
         return default
 
 
@@ -126,7 +142,9 @@ def validate_config_structure(config: dict) -> None:
         USPConfigError: If required sections are missing
     """
     if not isinstance(config, dict):
-        raise USPConfigError(f"Config must be a dictionary, got {type(config).__name__}")
+        raise USPConfigError(
+            f"Config must be a dictionary, got {type(config).__name__}"
+        )
 
     required_sections = ["parsing", "column_mapping", "processing"]
     missing = [section for section in required_sections if section not in config]
@@ -149,7 +167,9 @@ def validate_config_structure(config: dict) -> None:
         logger.warning(f"Unknown config sections (possible typos): {unknown}")
 
 
-def validate_positive_numeric(value: Any, param_name: str, allow_zero: bool = False) -> float:
+def validate_positive_numeric(
+    value: Any, param_name: str, allow_zero: bool = False
+) -> float:
     """
     Validate that a value is a positive numeric.
 
@@ -170,10 +190,14 @@ def validate_positive_numeric(value: Any, param_name: str, allow_zero: bool = Fa
         raise USPConfigError(f"Parameter '{param_name}' must be numeric, got: {value}")
 
     if float_value < 0:
-        raise USPConfigError(f"Parameter '{param_name}' must be non-negative, got: {float_value}")
+        raise USPConfigError(
+            f"Parameter '{param_name}' must be non-negative, got: {float_value}"
+        )
 
     if not allow_zero and float_value == 0:
-        raise USPConfigError(f"Parameter '{param_name}' must be positive, got: {float_value}")
+        raise USPConfigError(
+            f"Parameter '{param_name}' must be positive, got: {float_value}"
+        )
 
     return float_value
 
@@ -203,7 +227,9 @@ def get_nested_config(
         if isinstance(value, dict) and key in value:
             value = value[key]
         elif default is not None:
-            logger.debug(f"Optional config parameter not found at path: {path_str}. Using default: {default}")
+            logger.debug(
+                f"Optional config parameter not found at path: {path_str}. Using default: {default}"
+            )
             return default
         else:
             msg = f"Missing required configuration parameter at path: {path_str}"

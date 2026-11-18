@@ -26,11 +26,11 @@ into the "Protein IB (g/L)" column during a manual rework of `Evaluation_F19.xls
 "Protein concentration [g/L]"; soluble F stays 0/n.d.):
 
 | t [h] | old (artifact, = IB/Sol) | **new (canonical titer)** |
-| ---: | ---: | ---: |
-| 25.02 | 1.2537211 | **1.1073153** |
-| 27.02 | 2.2297262 | **2.2941798** |
-| 29.02 | 2.3851574 | **2.7247912** |
-| 31.02 | 2.4536884 | **3.1947748** |
+| -----:| ------------------------:| -------------------------:|
+| 25.02 | 1.2537211                | **1.1073153**             |
+| 27.02 | 2.2297262                | **2.2941798**             |
+| 29.02 | 2.3851574                | **2.7247912**             |
+| 31.02 | 2.4536884                | **3.1947748**             |
 
 The canonical values are the 23.03 measurement / summary cells that the publication uses.
 
