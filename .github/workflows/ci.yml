@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (locked)
+        run: uv sync --extra dev --extra dashboard
+
+      - name: Lint (black, isort, flake8)
+        run: |
+          uv run black --check src/ tests/ examples/
+          uv run isort --check-only src/ tests/ examples/
+          uv run flake8 src/ tests/ examples/
+
+      - name: Test
+        run: uv run pytest -q

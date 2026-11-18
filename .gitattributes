@@ -1,0 +1,16 @@
+# Normalize line endings: store text files with LF in the repo, check out
+# native per-platform. Prevents CRLF/LF churn between Windows and Unix
+# contributors (black/flake8 are configured for LF-compatible line length).
+* text=auto
+
+# Never normalize these (binary or line-ending-sensitive)
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.scn binary
+*.fcs binary
+*.opju binary
+
+# Shell scripts must stay LF
+*.sh text eol=lf
