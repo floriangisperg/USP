@@ -77,8 +77,8 @@ examples/**/data/                 # raw experiment data dirs (also covered below
 modeling_playground/
 **/archive/
 **/*_archived/
-.serena/
 **/tmpclaude-*
+.claude/
 
 # =============================================================================
 # Jupyter

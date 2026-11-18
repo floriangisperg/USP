@@ -1,13 +1,29 @@
 # USP Examples
 
-This directory contains comprehensive examples demonstrating how to use the USP (Upstream Processing) package for E. coli fermentation data analysis.
+This directory contains examples demonstrating how to use the USP (Upstream
+Processing) package for E. coli fermentation data analysis.
+
+## New here?
+
+**Goal: analyze your own fermentation data?** Follow
+[`docs/YOUR_OWN_DATA.md`](../docs/YOUR_OWN_DATA.md) — a step-by-step guide
+from raw bioreactor export to results — and scaffold a run folder with
+`python scripts/new_run.py <name>`. Come back here for worked examples and
+troubleshooting.
+
+**Runnable status:** `real_data_example/` ships its data and runs as-is
+after cloning. The other examples document *actual analyses of real
+campaigns*; their raw data is gitignored and lives outside the repo, so
+they run only where that data exists (see `all_data/` note in the main
+README).
 
 ## Overview
 
-Each example demonstrates different aspects of the package:
-- **DOE Example**: Design of Experiments with standardized analysis
-- **LDH Example**: Real production data with advanced features  
-- **Real Data Example**: Template for analyzing your own data
+- **Real Data Example**: self-contained end-to-end run — start here
+- **DOE Example**: 12 Design-of-Experiments runs with standardized analysis
+- **hGH Example**: two fed-batch runs + consolidated comparison dashboard
+- **LDH Example**: real production data with advanced carbon balance
+- **Xiso Example**: xylose-isomerase campaign analyses
 
 ---
 
@@ -21,17 +37,14 @@ Demonstrates analysis of Design of Experiments fermentation runs with systematic
 
 ```bash
 cd examples/doe_example
-python analyze_doe_run.py
+python analyze_doe_run.py ferm_01     # run folder is a CLI argument
 ```
 
 ### Configuration
 
-Before running, modify the script to specify which run to analyze:
-
-```python
-# In analyze_doe_run.py, line 24
-target_run_folder_name: str = "ferm_12"  # Change this to your run
-```
+Run-specific settings live in each run's `run_config.yaml` (induction
+times, phase names, reactor setup). The run folder is chosen on the
+command line; defaults to `ferm_12` when omitted.
 
 ### Directory Structure
 
@@ -206,7 +219,11 @@ Balance:
 
 **Location:** `examples/real_data_example/`
 
-Template for analyzing your own fermentation data with actual measurements and process variations.
+Self-contained end-to-end run with committed data — the only example that
+works immediately after cloning, and the template for analyzing your own
+fermentation data. For the full walkthrough (column mapping, parsing
+settings, minimal config), see
+[`docs/YOUR_OWN_DATA.md`](../docs/YOUR_OWN_DATA.md).
 
 ### Usage
 
@@ -214,24 +231,6 @@ Template for analyzing your own fermentation data with actual measurements and p
 cd examples/real_data_example
 python real_data_analysis.py
 ```
-
-### Setup Requirements
-
-1. **Create run directory structure:**
-```bash
-real_data_example/
-├── real_data_analysis.py           # Your analysis script
-├── run_config.yaml                 # Your configuration
-├── data/
-│   ├── your_bioreactor_data.csv   # Your online data
-│   └── your_samples.xlsx          # Your offline data
-└── results/                       # Auto-created
-```
-
-2. **Configure your data:**
-   - Update column mappings in `run_config.yaml`
-   - Set run-specific parameters (initial volume, feed density, etc.)
-   - Adjust parsing settings if needed
 
 ---
 
@@ -563,7 +562,7 @@ processing:
 
 ## Best Practices
 
-1. **Start with DOE example** - Cleaner data, easier to understand
+1. **Start with real_data_example** — it runs immediately and shows the full pipeline
 2. **Check logs first** - Detailed logging helps diagnose issues
 3. **Validate outputs** - Compare calculated values with expectations
 4. **Use config wisely** - Run-specific configs override defaults
@@ -580,16 +579,6 @@ These examples demonstrate standard bioprocess engineering analysis for E. coli 
 - **Gas analysis** - CER/OUR/RQ for metabolic state monitoring
 - **Carbon balance** - Yield and metabolic flux analysis
 - **Induction optimization** - Timing and protein production relationships
-
----
-
-## Tips
-
-1. **Start with DOE example** - Cleaner data, easier to understand
-2. **Check logs first** - Detailed logging helps diagnose issues
-3. **Validate outputs** - Compare calculated values with expectations
-4. **Use config wisely** - Run-specific configs override defaults
-5. **Version control configs** - Commit run configs for reproducibility
 
 ---
 
