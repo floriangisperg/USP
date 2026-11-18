@@ -25,6 +25,11 @@ metadata:
 # 3. PROCESSING PARAMETERS - Values Specific to THIS Run
 # ==================================================
 processing:
+  # Real induction time (process-time hours), from the operator's evaluation
+  # workbook (run1to4.R1_Auswertung.xlsx, sheet 'Time-Rownr'). The SCADA phase
+  # flip into the induced phase leads the manual IPTG bolus; this reference
+  # shifts 'Is induced [-]' to the true induction moment (audit 2026-10-23).
+  induction_time_h: 23.6667
   processing_parameters:
     reactor_setup:
       initial_volume_ml: 1100.0       # REQUIRED: Starting batch volume
@@ -74,3 +79,10 @@ processing:
   induced_phases:
     - 'induced Fedbatch'
     - 'Production'
+
+# Run1-export quirk (audit 2026-10-23): this export labels the
+# post-inoculation batch growth 'Preparation' (no 'Batch' phase). Rename it
+# instead of filtering, else the whole batch phase is deleted and process
+# time rezeros at feed start (misaligning the offline samples).
+cleaning:
+  rename_preparation_to_batch: true

@@ -25,6 +25,13 @@ metadata:
 # 3. PROCESSING PARAMETERS - Values Specific to THIS Run
 # ==================================================
 processing:
+  # Real induction time (process-time hours), from the operator's evaluation
+  # workbook (WH_F12_Auswertung.xlsx, sheet 'Time-Rownr'). The SCADA phase
+  # flip into the induced phase leads the manual IPTG bolus; this reference
+  # shifts 'Is induced [-]' to the true induction moment (audit 2026-10-23).
+  # NOTE: the repo's ferm_12 data is the WH_F12 v2 rerun (20240423), not the
+  # original Run6 ferm12 -- hence 23.6667, not Run6's 23.5167.
+  induction_time_h: 23.6667
   processing_parameters:
     reactor_setup:
       initial_volume_ml: 1100.0       # REQUIRED: Starting batch volume
