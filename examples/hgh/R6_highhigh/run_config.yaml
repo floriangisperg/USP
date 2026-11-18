@@ -1,0 +1,154 @@
+# examples/hgh/R6_highhigh/run_config.yaml
+# --- hGH USP | R6 "highhigh" (induction qs=0.6, T=35°C) ---
+
+# ==================================================
+# 1. METADATA
+# ==================================================
+metadata:
+  fermentation_id: 'hGH_USP_R6_highhigh'
+  # Process-time zero = SUCCESSFUL re-inoculation 2026-10-21 11:52. The first
+  # inoculation (10-20, vessel auto-start 10:08) failed - wrong pre-culture
+  # pH (00_Weekly_Summary.txt, Samplingsheet_R6_highhigh.pdf) - so
+  # prepare_hgh_data.py caps the online data there (~24 h of cold holding
+  # dropped, incl. sample #1 at 6.9 g/L, partial growth of the failed
+  # batch). Uncapped raws stay at the example root.
+  date_start: '2026-10-21'
+  strain: 'E. coli BL21(DE3)'
+  reactor: 'MF2 R6'
+  media_base: 'DeLisa Glucose'        # DeLisa variant, batch glucose 20 g/L
+                                      # (20261019_Media.xlsx 'Media prep. FB';
+                                      # + kanamycin, AF 0.1 g/L)
+  # Induction phase conditions; qs setpoint from analytics workbook
+  # ('Conditions': 'qS 0.6; 35 °C'; TransitionPhase.qsset column empty).
+  induction_summary: 'IPTG bolus (manual) at process time 23.43 h, qs=0.6, T=35°C, ~8.0h'
+  media_config_file: 'delisa_media_config.yaml'
+
+# ==================================================
+# 2. PARSING OVERRIDES (SNO export dialect)
+# ==================================================
+# This export uses US-style 12h timestamps and dot decimals, unlike the
+# default (%d.%m.%Y %H:%M with comma decimals).
+parsing:
+  bioreactor:
+    decimal_separator: '.'
+    column_separator: ';'
+    date_format: '%m/%d/%Y %I:%M:%S %p'
+    skiprows: 1
+    encoding: 'cp1252'
+
+# ==================================================
+# 3. COLUMN MAPPING OVERRIDE (optional)
+# ==================================================
+# Online headers match default_config.yaml. Unmapped extra columns
+# ('TransitionPhase.FeedrateTransition, %', 'TransitionPhase.qsset, g/g/h',
+# 'GenericGasAnalyser.ExitHumidity, %') pass through untouched; qsset is empty.
+
+# ==================================================
+# 4. ALIGNMENT OVERRIDES
+# ==================================================
+alignment:
+  # Library default (true) excludes the last offline sample from standard
+  # matching and pins it onto the export's final online row. Sample #7 here
+  # has a true timestamp ~20 min BEFORE the export ends, so keep it.
+  force_align_last_sample: false
+
+# ==================================================
+# 5. PROCESSING PARAMETERS
+# ==================================================
+processing:
+  # Operator-verified IPTG bolus (2026-10-22 11:18, via operator chat). The
+  # SCADA flip into 'induced Fedbatch' happens at 22.77 h and LEADS the
+  # physical bolus by +0.67 h (the FeedpumpCalibration.xlsx scale sheet even
+  # annotates 'induction' at 10:59, still 21 min after the flip); the
+  # |reference - flip| > 0.25 h tolerance warning in the log is expected.
+  induction_time_h: 23.4333
+  processing_parameters:
+
+    balance_mode: 'feed_source'
+    # R6's export HAS a real balance signal (feed bottle, 1794.8 -> 1293.4 g);
+    # cross-checked against the manual scale readings in
+    # FeedpumpCalibration.xlsx (end value matches exactly), so the online
+    # balance is trustworthy - no synthetic reconstruction, unlike R5.
+
+    reactor_setup:
+      initial_volume_ml: 1320.0       # Vstart after the re-inoculation
+                                      # (sampling sheet: ~1.15 L medium
+                                      # - 10 mL sample + 170 mL OD 5 pre-culture)
+
+    gas_params:                       # same MF2 setup as the LDH example
+      inlet_o2_mol_pct: 21.0          # air only (Gas mix = 21, Gas2Flow ~ 0)
+      inlet_co2_mol_pct: 0.04
+      inlet_h2o_mol_pct: 0.0142857    # as LDH (verify for this setup)
+      outlet_o2_wet_mol_pct: 20.7     # reference/validation only
+      air_flow_l_min: 2.0             # fallback; online 'Air flow' (~2 L/min) overrides
+      molar_volume_air_l_mol: 25.291
+      molar_volume_temp_c: 35.0
+      offgas_is_wet: true             # ExitHumidity tracked (~42%)
+      use_n2_balance: true
+
+    feed_definitions:
+      feed_1:                         # feed linked to Pump4
+        name: 'Glucose Feed'
+        density_g_ml: 1.15            # 400 g/L glucose, same as LDH/scFv/Xiso.
+                                      # NOTE: FeedpumpCalibration.xlsx computed
+                                      # its Feedvolumen columns with 1.08 g/mL -
+                                      # inconsistent with a 400 g/L recipe; 1.15
+                                      # overrules it.
+        glucose:
+          concentration_g_l: 400.0    # operator-confirmed feed recipe
+
+    medium_definitions:
+      density_g_ml: 1.088             # DeLisa standard
+
+    base_titrant:                     # pH untracked: Pump1/Pump2 never active,
+                                      # so base contribution is 0 regardless.
+                                      # Values = MF2 park standard (as LDH/scFv).
+      compound: 'NH4OH'
+      molarity_mol_l: 6.95
+      density_g_ml: 0.947
+      pump_channel: 'Pump2'
+      total_added_g: 0
+
+    biomass:
+      pass                            # default CH1.77N0.24O0.49, 26.565 g/C-mol
+
+    substrate_properties:
+      glucose:
+        molar_mass_g_c_mol: 30.03     # anhydrous C-mol basis (180.156/6)
+      acetate:
+        molar_mass_g_c_mol: 29.5
+
+    product_properties:               # hGH / somatropin 191 aa
+      name: 'hGH'
+      elemental_composition_c_mol:    # C990H1529N263O299S7, MW 22124.5 (Ph. Eur.)
+        C: 1.0                        # untagged somatropin assumed: IB process
+                                      # needs no affinity tag, and the RP-HPLC
+                                      # 'hGH red' peak (~10.75 min, single peak)
+                                      # matches authentic-size hGH.
+        H: 1.5444
+        N: 0.26566
+        O: 0.30202
+      molar_mass_g_c_mol: 22.348      # 22124.5/990 g per C-mol
+      nitrogen_content_gN_gP: 0.1665  # 263*14.007/22124.5
+
+  induced_phases:
+    - 'induced Fedbatch'              # export writes 'inducedFedbatch'; the
+                                      # parser camel-splits it to this
+
+# ==================================================
+# 6. MEDIA CONFIG OVERRIDE (per-run)
+# ==================================================
+analysis:
+  delisa_media_config:
+    feed_1:
+      components:
+        glucose:
+          concentration_g_l: 400.0   # overrides media-config default
+    batch_medium:
+      components:
+        glucose:
+          # hgh batch = 20 g/L ANHYDROUS glucose (20261019_Media.xlsx), not the
+          # bundled 22 g/L glucose MONOHYDRATE - override conc + molar mass
+          concentration_g_l: 20.0
+          mw_g_mol: 180.156
+          c_atoms_per_molecule: 6
