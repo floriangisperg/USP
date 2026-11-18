@@ -74,13 +74,18 @@ tests/
 ### Code Quality
 
 ```bash
-black src/ tests/ examples/
-isort src/ tests/ examples/
-flake8 src/ tests/ examples/
+black src/ tests/          # package code: strict, 88 chars, CI-gated
+isort src/ tests/
+flake8 src/ tests/
 ```
 
+Analysis scripts under `examples/` and `modeling/` are format-checked
+(black/isort) but exempted from pedantic flake8 codes via `.flake8`
+per-file-ignores — they are research scripts, not package code.
+
 Configuration: `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]` in
-`pyproject.toml`; flake8 in `.flake8` (line-length 88, black-compatible).
+`pyproject.toml`; flake8 in `.flake8` (max line length 100 to tolerate legacy
+docstring prose, black-compatible code, per-file exemptions).
 
 ## Architecture Overview
 

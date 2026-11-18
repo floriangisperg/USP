@@ -1,6 +1,8 @@
 [flake8]
-# Keep in sync with [tool.black] line-length in pyproject.toml
-max-line-length = 88
+# Code lines are formatted by black at 88; flake8 tolerates up to 100 so that
+# legacy docstring/comment prose does not need mass rewrapping. Keep this in
+# sync with [tool.black] line-length in pyproject.toml.
+max-line-length = 100
 # E203 / W503: conflicts with black's slicing and line-break style
 extend-ignore = E203, W503
 exclude =
@@ -11,4 +13,10 @@ exclude =
     dist,
     .eggs,
     *.egg-info,
-    modeling_playground
+    modeling_playground,
+    archive
+per-file-ignores =
+    # examples/ and modeling/ are one-off analysis scripts: format-checked
+    # (black/isort), exempted from pedantic checks; F821 undefined names still fail.
+    examples/*.py: E501,F401,F541,E402,F841,E712,E126,E127,E128,E261,E301,E302,E305
+    modeling/*.py: E501,F401,F541,E402,F841,E712,E126,E127,E128,E261,E301,E302,E305

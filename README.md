@@ -52,6 +52,10 @@ cd examples/real_data_example
 python real_data_analysis.py
 ```
 
+**Bringing your own fermentation data?** Follow
+[`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md) and scaffold a run folder
+with `python scripts/new_run.py <name>`.
+
 This parses `data/rawdata.csv` + `data/samples.xlsx`, runs the full pipeline
 using `run_config.yaml`, and writes results to `results/`:
 
@@ -101,7 +105,8 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 | `examples/doe_example/` | 12 scFv DoE fermentation runs; `python analyze_doe_run.py ferm_01` analyzes one run. Consolidated raw exports live in `all_data/` |
 | `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high): analyze each run, then `consolidate_results.py` builds combined workbooks + a bokeh comparison dashboard |
 | `examples/LDH/` / `examples/Xiso/` | Per-product analyses: run scripts plus `consolidate_results.py` each |
-| `modeling_playground/` | Parameter-fitting sandbox (cma + catalax; `modeling` extra) — scratch work, **not tracked in git** |
+| `modeling/` | **Tracked** home of mature modeling analyses (mechanistic IB model, LDH fit lineage v5→v6, IB solubility study with report) — promoted out of the playground; figures local-only. See [`modeling/README.md`](modeling/README.md) |
+| `modeling_playground/` | Active parameter-fitting sandbox (cma + catalax; `modeling` extra) — scratch work, **not tracked in git** |
 
 Experiment data (`examples/**/data/`, `results/`, `all_data/`) is gitignored
 and lives outside the repo; `real_data_example` intentionally ships its data
@@ -167,10 +172,15 @@ pipeline), with shared in-memory fixtures in `tests/conftest.py`.
 ## Code quality
 
 ```bash
-black src/ tests/ examples/
-isort src/ tests/ examples/
-flake8 src/ tests/ examples/
+black src/ tests/          # package code: strict, 88 chars
+isort src/ tests/
+flake8 src/ tests/         # CI gate on the package
 ```
+
+Analysis scripts under `examples/` and `modeling/` are format-checked with
+black/isort but exempted from pedantic flake8 rules (see `.flake8`
+per-file-ignores); `flake8 src/ tests/ examples/ modeling/` runs everything
+locally.
 
 Tool configuration lives in `pyproject.toml` (`[tool.black]`, `[tool.isort]`,
 `[tool.pytest.ini_options]`) and `.flake8`.

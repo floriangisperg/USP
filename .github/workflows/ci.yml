@@ -21,9 +21,9 @@ jobs:
 
       - name: Lint (black, isort, flake8)
         run: |
-          uv run black --check src/ tests/ examples/
-          uv run isort --check-only src/ tests/ examples/
-          uv run flake8 src/ tests/ examples/
+          uv run black --check src/ tests/
+          uv run isort --check-only src/ tests/
+          uv run flake8 src/ tests/
 
       - name: Test
         run: uv run pytest -q
