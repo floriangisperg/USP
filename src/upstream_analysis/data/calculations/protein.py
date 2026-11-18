@@ -95,7 +95,9 @@ def calculate_protein_parameters(df: pd.DataFrame) -> pd.DataFrame:
         elif "Protein total calculated [g/L]" in df_out.columns:
             df_out["Soluble fraction [%]"] = (
                 df_out["Protein soluble [g/L]"]
-                / df_out["Protein total calculated [g/L]"].replace(0, np.nan)
+                / df_out["Protein total calculated [g/L]"]
+                .infer_objects(copy=False)
+                .replace(0, np.nan)
             ) * 100
             logger.info("Calculated soluble fraction from calculated total protein.")
 
@@ -109,7 +111,9 @@ def calculate_protein_parameters(df: pd.DataFrame) -> pd.DataFrame:
         elif "Protein total calculated [g/L]" in df_out.columns:
             df_out["IB fraction [%]"] = (
                 df_out["Protein IB [g/L]"]
-                / df_out["Protein total calculated [g/L]"].replace(0, np.nan)
+                / df_out["Protein total calculated [g/L]"]
+                .infer_objects(copy=False)
+                .replace(0, np.nan)
             ) * 100
             logger.info("Calculated IB fraction from calculated total protein.")
 
