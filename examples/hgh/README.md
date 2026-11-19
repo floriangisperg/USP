@@ -25,8 +25,9 @@ hgh/
 ```bash
 # 1. build per-run data/ from the raw exports (merges online CSV + offline
 #    samples from the analytics workbook, caps R5 at the successful
-#    re-inoculation, builds the synthetic balance from the pump calibration)
-python prepare_hgh_data.py
+#    re-inoculation, builds the synthetic balance from the pump calibration);
+#    paths are script-relative, so run from anywhere
+python examples/hgh/prepare_hgh_data.py
 
 # 2. analyze each run
 python -m upstream_analysis.pipeline examples/hgh/R5_lowlow

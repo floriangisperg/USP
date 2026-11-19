@@ -1,8 +1,10 @@
 """Prepare the hGH example data (runs R5_lowlow / R6_highhigh).
 
-Run first, before ``analyze_hgh_run.py``:
+Run first, before analyzing the runs:
 
-    python prepare_hgh_data.py
+    python examples/hgh/prepare_hgh_data.py
+
+(paths are script-relative, so it runs from anywhere).
 
 What it does (idempotent; re-running overwrites the generated files):
 
@@ -104,7 +106,7 @@ BATCH_SAMPLES = {
 # protein calcs - the pipeline's sample volume is the physical withdrawal).
 ANALYTICS_SAMPLE_VOLUME_ML = 30.0
 
-DCW_XLSX = HERE / "20261020_DCW_KW43.xlsx"
+DCW_XLSX = RAW_DIR / "20261020_DCW_KW43.xlsx"
 
 SAMPLES_COLUMNS = [
     "Process Time [h]",
@@ -544,7 +546,10 @@ def main() -> None:
     prepare_r5()
     build_samples("R5")
     build_samples("R6")
-    print("\nDone. Now run: python analyze_hgh_run.py R5_lowlow  (and R6_highhigh)")
+    print(
+        "\nDone. Now analyze each run: "
+        "python -m upstream_analysis.pipeline examples/hgh/R5_lowlow (and R6_highhigh)"
+    )
 
 
 if __name__ == "__main__":
