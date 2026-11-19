@@ -64,8 +64,9 @@ Notes per example:
   into the per-run `data/` files. The modeling sandbox that used to live
   under `examples/LDH/modeling_playground/` (the M0 campaign) moved to
   `../../Archive/USP_modeling/LDH_M0_campaign/` — see that README.
-- **DOE**: `audit_induction_operator_vs_scada.py` documents the
-  operator-vs-SCADA induction-time audit behind the run configs.
+- **DOE**: the `induction_time_h` values in the run configs come from an
+  operator-vs-SCADA audit (2026-10-23); the audit script and the one-off
+  `data_merger.ipynb` live in `../../Archive/USP_artifacts/doe/`.
 
 ## Troubleshooting
 
