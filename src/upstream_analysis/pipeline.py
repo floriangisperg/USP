@@ -149,18 +149,27 @@ def run_directory(
         # Convention: single CSV is the online export, optional xlsx the offline sheet.
         online_file = csv_files[0]
         offline_file = xlsx_files[0] if len(xlsx_files) == 1 else None
-    elif not csv_files and len(xlsx_files) == 2:
-        # Excel-online layout (e.g. LDH): the *Rawdata* file is online,
-        # the samples workbook offline.
-        raw = [f for f in xlsx_files if "raw" in f.name.lower()]
+    elif not csv_files and xlsx_files:
+        # Excel-online layouts: the offline workbook is the one named
+        # *samples*; the online export is whatever remains after excluding
+        # it and operator reference workbooks (Evaluation_*.xlsx).
         samples = [f for f in xlsx_files if "sample" in f.name.lower()]
-        if len(raw) != 1 or len(samples) != 1:
+        evaluation = [f for f in xlsx_files if "evaluation" in f.name.lower()]
+        rest = [f for f in xlsx_files if f not in samples and f not in evaluation]
+        if len(samples) == 1 and len(rest) == 1:
+            online_file, offline_file = rest[0], samples[0]
+            if evaluation:
+                logger.info(
+                    "ignoring reference workbook(s) in data/: %s",
+                    [f.name for f in evaluation],
+                )
+        else:
             raise ValueError(
                 f"ambiguous data files in {data_dir}: {[f.name for f in xlsx_files]} — "
-                "name the online file *Rawdata*.xlsx and the offline one samples.xlsx, "
-                "or call run_pipeline() with explicit paths"
+                "name the offline workbook samples.xlsx, keep exactly one online "
+                "export, and move reference workbooks (Evaluation_*.xlsx) out of "
+                "data/, or call run_pipeline() with explicit paths"
             )
-        online_file, offline_file = raw[0], samples[0]
     else:
         raise ValueError(
             f"expected one online CSV (+ optional offline xlsx) in {data_dir}, "
