@@ -1,24 +1,18 @@
-"""Tests for the one-call pipeline runner (uses the committed synthetic example)."""
-
-from pathlib import Path
+"""Tests for the one-call pipeline runner (uses the synthetic run fixture)."""
 
 import pandas as pd
 import pytest
 
 from upstream_analysis import load_config, run_directory, run_pipeline
 
-SYNTHETIC_EXAMPLE = (
-    Path(__file__).resolve().parents[2] / "examples" / "synthetic_example"
-)
-
 
 @pytest.fixture(scope="module")
-def synthetic_result(tmp_path_factory):
+def synthetic_result(tmp_path_factory, synthetic_run):
     out_dir = tmp_path_factory.mktemp("synthetic_results")
-    return run_directory(SYNTHETIC_EXAMPLE, output_dir=out_dir)
+    return run_directory(synthetic_run, output_dir=out_dir)
 
 
-def test_run_directory_processes_synthetic_example(synthetic_result):
+def test_run_directory_processes_synthetic_run(synthetic_result):
     df = synthetic_result.processed
     assert len(df) >= 800
     assert df["Process time [h]"].min() >= -1e-9
@@ -39,10 +33,21 @@ def test_samples_are_flagged(synthetic_result):
     assert len(samples) == 9
 
 
-def test_run_pipeline_with_explicit_paths(tmp_path):
-    config = load_config(SYNTHETIC_EXAMPLE / "run_config.yaml")
-    csv_files = list((SYNTHETIC_EXAMPLE / "data").glob("*.csv"))
-    xlsx_files = list((SYNTHETIC_EXAMPLE / "data").glob("*.xlsx"))
+def test_feed_and_induction_sanity(synthetic_result):
+    df = synthetic_result.processed
+    feed_final = df["Feed [g]"].dropna().iloc[-1]
+    assert 150 < feed_final < 300, f"unexpected cumulative feed: {feed_final}"
+    induced = df[df["Is induced [-]"] > 0]["Process time [h]"]
+    assert len(induced) > 0 and abs(induced.min() - 16.0) < 0.34
+    late = df[df["is_sample"].eq(True) & (df["Process time [h]"] > 16)]
+    frac = (late["Protein IB [g/L]"] / late["Protein [g/L]"]).dropna()
+    assert 0.3 < frac.iloc[-1] < 0.5
+
+
+def test_run_pipeline_with_explicit_paths(tmp_path, synthetic_run):
+    config = load_config(synthetic_run / "run_config.yaml")
+    csv_files = list((synthetic_run / "data").glob("*.csv"))
+    xlsx_files = list((synthetic_run / "data").glob("*.xlsx"))
     result = run_pipeline(
         config,
         csv_files[0],

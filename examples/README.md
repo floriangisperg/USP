@@ -14,9 +14,10 @@ python -m upstream_analysis.consolidation <campaign_dir> --prefix <PREFIX>
 
 ## New here?
 
-1. Verify your install: `python examples/synthetic_example/verify_results.py`
-2. Analyze the self-contained real example:
-   `python -m upstream_analysis.pipeline examples/real_data_example`
+1. Verify your install: `pytest` (includes end-to-end pipeline checks on
+   simulated data)
+2. Analyze a campaign run:
+   `python -m upstream_analysis.pipeline examples/scFvM/ferm_01`
 3. Bringing **your own fermentation data**? Follow
    [`docs/YOUR_OWN_DATA.md`](../docs/YOUR_OWN_DATA.md) and scaffold with
    `python scripts/new_run.py <name>`.
@@ -24,10 +25,10 @@ python -m upstream_analysis.consolidation <campaign_dir> --prefix <PREFIX>
    [`docs/DATA_LAYOUT.md`](../docs/DATA_LAYOUT.md) — campaign folder,
    one folder per run, then consolidate.
 
-**Runnable status:** `synthetic_example/` and `real_data_example/` ship
-their data and run as-is after cloning. The other examples document *actual
-analyses of real campaigns*; their raw data is gitignored and lives outside
-the repo, so they run only where that data exists.
+**Runnable status:** these examples document *actual analyses of real
+campaigns*; their raw data is gitignored and lives outside the repo, so
+they run only where that data exists. End-to-end coverage on simulated
+data lives in the test suite, not in the examples.
 
 Each example contains only what an example needs (run configs + notes).
 Generated outputs, logs and one-off research analyses that had accumulated
@@ -38,9 +39,7 @@ campaign is still current and keeps its outputs.
 
 | Directory | What it shows |
 |---|---|
-| `synthetic_example/` | Simulated 28 h fed-batch, committed data, minimal config. `verify_results.py` asserts 11 sanity checks; also the CI smoke test |
-| `real_data_example/` | Real measurements end-to-end — the template for your own data |
-| `doe_example/` | 12 scFv DoE fermentation runs (config per run incl. operator-verified induction times, `all_data/` raw campaign exports) |
+| `scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times, `all_data/` raw campaign exports) |
 | `hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high) + consolidated comparison dashboard |
 | `LDH/` | Real LDH production data: Excel online exports, advanced carbon balance, the F19 IB correction note |
 | `Xiso/` | Xylose-isomerase campaign (3 runs) |
@@ -49,10 +48,10 @@ Campaign usage, e.g. the DoE set:
 
 ```bash
 # bash: analyze every run, then consolidate
-for d in examples/doe_example/ferm_*/; do
+for d in examples/scFvM/ferm_*/; do
   python -m upstream_analysis.pipeline "$d"
 done
-python -m upstream_analysis.consolidation examples/doe_example --prefix doe
+python -m upstream_analysis.consolidation examples/scFvM --prefix doe
 ```
 
 Notes per example:
@@ -131,4 +130,4 @@ column_mapping:
    [`docs/YOUR_OWN_DATA.md`](../docs/YOUR_OWN_DATA.md) for the input contract
 3. **Review configuration** — every option in
    [`docs/CONFIGURATION.md`](../docs/CONFIGURATION.md)
-4. **Compare with examples** — use `synthetic_example/` as the reference
+4. **Compare with examples** — the run configs show real campaign settings

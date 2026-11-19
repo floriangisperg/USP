@@ -34,12 +34,10 @@ scripts: `python -m upstream_analysis.pipeline <run_dir>` analyzes one run,
 the consolidated workbooks and dashboard.
 
 Real examples of this layout: `examples/hgh/` (cleanest — two runs),
-`examples/doe_example/` (12 runs + `all_data/` raw campaign exports),
+`examples/scFvM/` (13 runs + `all_data/` raw campaign exports),
 `examples/LDH/` and `examples/Xiso/`. A single-fermentation analysis is the
-same minus the campaign level: that is exactly `examples/real_data_example/`
-and what `python scripts/new_run.py <name>` scaffolds under `runs/`.
-`examples/synthetic_example/` is the minimal single-run version with
-committed simulated data (it is also the CI smoke test).
+same minus the campaign level — that is what
+`python scripts/new_run.py <name>` scaffolds under `runs/`.
 
 ## What actually has to be where
 
@@ -72,9 +70,8 @@ column and writes, at campaign level:
 By policy (enforced by `.gitignore` extension rules), the repo tracks
 **configs and written notes** — `run_config.yaml`, correction docs — and
 ignores **all data and outputs**: `data/`, `results/`, raw campaign
-exports, consolidated workbooks, plots. The committed exceptions are
-`real_data_example/` and `synthetic_example/`, which ship their data
-intentionally (`git add -f`) so a fresh clone can run end-to-end.
+exports, consolidated workbooks, plots. No example ships data; the
+end-to-end coverage lives in the test suite (synthetic run fixture).
 
 ## Growing from one run to a campaign
 

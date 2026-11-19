@@ -44,11 +44,8 @@ skip. Plain pip fallback: `pip install -e ".[dev]" ".[dashboard]"`.
 ### Verifying Your Setup
 
 ```bash
-python examples/synthetic_example/verify_results.py   # end-to-end, ~30 s
+pytest   # 149 tests incl. end-to-end pipeline/consolidation checks, ~1 min
 ```
-
-Runs the full pipeline on committed simulated data and asserts 11 sanity
-checks. This is also the CI smoke test.
 
 ### Running Examples
 
@@ -56,14 +53,11 @@ The pipeline and consolidation live in the package — examples are data +
 configs, no scripts:
 
 ```bash
-# Synthetic — fastest check, committed data, no overrides needed
-python examples/synthetic_example/verify_results.py
+# Synthetic run fixture — end-to-end coverage lives in the test suite
+pytest tests/unit/test_pipeline.py tests/unit/test_consolidation.py
 
-# Real data — self-contained example with real measurements
-python -m upstream_analysis.pipeline examples/real_data_example
-
-# One run of a campaign
-python -m upstream_analysis.pipeline examples/doe_example/ferm_01
+# One run of a campaign (folder names per example)
+python -m upstream_analysis.pipeline examples/scFvM/ferm_01
 
 # Consolidate a campaign into workbooks + comparison dashboard
 python -m upstream_analysis.consolidation examples/hgh --prefix hGH
@@ -176,8 +170,7 @@ The full convention (campaign level, file naming, what git tracks, how to
 grow from one run to a campaign) is specified in
 [`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md) — keep that document
 authoritative rather than duplicating layout rules here. Raw data stays out
-of the repo; the committed exceptions are `real_data_example/` and
-`synthetic_example/` (both `git add -f`).
+of the repo; no example ships data.
 
 ## Notes for Contributors
 

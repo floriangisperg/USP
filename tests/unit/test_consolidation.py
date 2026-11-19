@@ -1,16 +1,10 @@
-"""Tests for the consolidation module (uses the committed synthetic example)."""
-
-from pathlib import Path
+"""Tests for the consolidation module (uses the synthetic run fixture)."""
 
 import pandas as pd
 import pytest
 
 from upstream_analysis import ConsolidationConfig, consolidate_runs, find_column
 from upstream_analysis.consolidation import improve_protein_concentrations
-
-SYNTHETIC_EXAMPLE = (
-    Path(__file__).resolve().parents[2] / "examples" / "synthetic_example"
-)
 
 
 def test_find_column_exact_and_encoding_fallback():
@@ -36,14 +30,14 @@ def test_improve_protein_concentrations_recomputes_derived_columns():
 
 
 @pytest.fixture(scope="module")
-def consolidated_campaign(tmp_path_factory):
-    """Run the pipeline on the synthetic example as a one-run campaign."""
+def consolidated_campaign(tmp_path_factory, synthetic_run):
+    """Run the pipeline on the synthetic run as a one-run campaign."""
     from upstream_analysis import run_directory
 
     campaign = tmp_path_factory.mktemp("campaign")
     run_dir = campaign / "SIM01"
     (run_dir / "results").mkdir(parents=True)
-    run_directory(SYNTHETIC_EXAMPLE, output_dir=run_dir / "results")
+    run_directory(synthetic_run, output_dir=run_dir / "results")
     data = consolidate_runs(campaign, ConsolidationConfig(output_prefix="test"))
     return campaign, data
 

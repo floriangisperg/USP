@@ -42,16 +42,11 @@ pip install -e ".[dev]"
 
 ## Quickstart
 
-The fastest way to see the full pipeline is the real-data example:
+Verify your install with the test suite (includes end-to-end pipeline and
+consolidation checks on simulated data):
 
 ```bash
-python -m upstream_analysis.pipeline examples/real_data_example
-```
-
-For a 30-second end-to-end check (simulated data, committed, runs in CI):
-
-```bash
-python examples/synthetic_example/verify_results.py
+pytest
 ```
 
 **Bringing your own fermentation data?** Follow
@@ -104,8 +99,7 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 
 | Directory | What it shows |
 |---|---|
-| `examples/real_data_example/` | Minimal end-to-end run — ships its own `data/`, runnable as-is |
-| `examples/doe_example/` | 12 scFv DoE fermentation runs. Consolidated raw exports live in `all_data/` |
+| `examples/scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times, `all_data/` raw campaign exports) |
 | `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high) with a consolidated comparison dashboard |
 | `examples/LDH/` / `examples/Xiso/` | Per-product campaigns: run configs + consolidation outputs |
 
@@ -115,8 +109,7 @@ lives outside the repo — see `../Archive/USP_modeling/README.md` and the
 `HybridModel` project.
 
 Experiment data (`examples/**/data/`, `results/`, `all_data/`) is gitignored
-and lives outside the repo; `real_data_example` intentionally ships its data
-via `git add -f`.
+and lives outside the repo.
 
 ## Architecture
 

@@ -313,7 +313,7 @@ rate_params:
 Each fermentation run should have its own `run_config.yaml` in the run directory:
 
 ```yaml
-# examples/doe_example/ferm_01/run_config.yaml
+# examples/scFvM/ferm_01/run_config.yaml
 
 metadata:
   fermentation_id: 'Run_01'

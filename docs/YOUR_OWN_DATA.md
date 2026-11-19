@@ -10,7 +10,7 @@ example:
 
 ```bash
 uv sync --extra dev --extra dashboard
-python examples/synthetic_example/verify_results.py
+pytest   # 149 tests incl. end-to-end pipeline checks on simulated data
 ```
 
 If that produces `results/processed_data.csv` and plots, your environment

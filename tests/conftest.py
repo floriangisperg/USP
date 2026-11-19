@@ -307,3 +307,162 @@ def nan_dataframe():
             "Offgas O2 [%]": [20.5, 20.3, np.nan, 19.5, 19.2],
         }
     )
+
+
+# --- Synthetic fermentation run fixture -------------------------------------
+# Ported from examples/synthetic_example/generate_data.py (folder removed);
+# builds a self-contained run folder so pipeline/consolidation tests have
+# realistic data without shipping any example folder.
+
+import matplotlib  # noqa: E402
+
+matplotlib.use("Agg")
+
+
+def _build_synthetic_run(dest: Path) -> Path:
+    """Write a synthetic fermentation run (28 h fed-batch, seeded) to dest."""
+    rng = np.random.default_rng(42)
+    start = pd.Timestamp("2026-01-15 09:00")
+    dt_h = 2.0 / 60
+    v0_l, x0, mu_batch, mu_fed, y_xs, s_feed_g_ml, feed_density = (
+        1.5,
+        0.5,
+        0.28,
+        0.08,
+        0.45,
+        0.4,
+        1.15,
+    )
+
+    def biomass(t):
+        return np.where(
+            t < 0,
+            x0 * 0.2,
+            np.where(
+                t < 10,
+                x0 * np.exp(mu_batch * np.clip(t, 0, None)),
+                x0 * np.exp(mu_batch * 10) * np.exp(mu_fed * (t - 10)),
+            ),
+        )
+
+    def dxdt(t):
+        return np.where(t < 10, mu_batch, mu_fed) * biomass(t)
+
+    t = np.arange(-0.25, 28.0 + dt_h, dt_h)
+    stamps = start + pd.to_timedelta(t, unit="h")
+    phase = np.where(
+        t < 0,
+        "Preparation",
+        np.where(t < 10, "Batch", np.where(t < 16, "Fedbatch", "induced Fedbatch")),
+    )
+    x = biomass(t)
+    feed_glu = np.maximum(dxdt(t), 0) * v0_l / y_xs
+    feed_ml_h = feed_glu / s_feed_g_ml
+    feed_rate = np.where(t >= 10, feed_ml_h * feed_density, 0.0)
+    feed_cum_g = np.cumsum(feed_rate) * dt_h
+    balance = 800.0 - feed_cum_g + rng.normal(0, 0.05, t.size)
+    our = np.where(t >= 0, dxdt(t) / 26.565 * 1000, 0.0)
+    vol_l = v0_l + feed_cum_g / feed_density / 1000
+    f_mol_h = 1.0 * 60 / 22.414
+    d_o2 = our * vol_l / (f_mol_h * 1000) * 100 * 1.02
+    exit_o2 = 20.9 - d_o2 + rng.normal(0, 0.03, t.size)
+    exit_co2 = (
+        0.04 + our * 1.0 * vol_l / (f_mol_h * 1000) * 100 + rng.normal(0, 0.02, t.size)
+    )
+    po2 = np.where(
+        (t > 9.2) & (t < 10.4), 12.0, np.where(t < 0, 45.0, 38.0)
+    ) + rng.normal(0, 2.0, t.size)
+    ph = np.where(t < 16, 7.0, 7.1) + rng.normal(0, 0.02, t.size)
+    od = np.clip(x / 0.35 * (1 + rng.normal(0, 0.03, t.size)), 0.05, None)
+    dur = np.maximum(t, 0) * 3600
+
+    online = pd.DataFrame(
+        {
+            "Date Time UTC": stamps.strftime("%d.%m.%Y %H:%M"),
+            "Batch Time, sec": (t * 3600).round(0).astype(int),
+            "Phase": phase,
+            "AirFlow, l/min": np.round(1.0 + rng.normal(0, 0.02, t.size), 3),
+            "TotalFlow, l/min": np.round(1.0 + rng.normal(0, 0.02, t.size), 3),
+            "GasMix": 21,
+            "Pump2.Duration, -": np.round(np.where(t < 0, np.nan, dur), 0),
+            "Pump4.Duration, -": np.round(np.where(t < 10, np.nan, (t - 10) * 3600), 0),
+            "Stirrer, 1/min": np.round(1200 + rng.normal(0, 8, t.size), 0),
+            "Temperature, °C": np.round(37.0 + rng.normal(0, 0.05, t.size), 2),
+            "Balance, g": np.round(balance, 3),
+            "pH, -": np.round(ph, 3),
+            "pO2, %": np.round(po2, 1),
+            "GenericGasAnalyser.ExitCO2, %": np.round(exit_co2, 3),
+            "GenericGasAnalyser.ExitO2, %": np.round(exit_o2, 3),
+            "OD600": np.round(od, 3),
+        }
+    )
+
+    def de(col):
+        s = online[col]
+        if s.dtype.kind in "fc":
+            return s.map(lambda v: "" if pd.isna(v) else f"{v:.3f}".replace(".", ","))
+        return s
+
+    out = pd.DataFrame({c: de(c) for c in online.columns})
+    data_dir = dest / "data"
+    data_dir.mkdir(parents=True)
+    with open(data_dir / "rawdata.csv", "w", encoding="utf-8", newline="") as fh:
+        fh.write("DASGIP-Export: synthetic fermenter SIM01 (generated data)\n")
+        out.to_csv(fh, sep=";", index=False)
+
+    s_t = np.array([1.5, 4.0, 7.0, 9.5, 12.0, 15.0, 19.0, 23.0, 26.5])
+    s_x = biomass(s_t) * (1 + rng.normal(0, 0.04, s_t.size))
+    s_glu = np.where(s_t < 10, np.maximum(20.0 - (s_x - x0) / y_xs, 0.15), 0.3)
+    s_prot = np.where(s_t > 16, 0.12 * (s_x - biomass(16.0)), 0.0)
+    pd.DataFrame(
+        {
+            "Process Time [h]": s_t,
+            "OD": np.round(s_x / 0.35, 2),
+            "Biomass [g/L]": np.round(s_x, 3),
+            "Glucose [g/L]": np.round(s_glu * (1 + rng.normal(0, 0.08, s_t.size)), 3),
+            "Acetate [g/L]": np.round(
+                np.clip(
+                    0.35 * np.maximum(0, s_t - 6) / 4 - 0.15 * np.maximum(0, s_t - 12),
+                    0,
+                    1.2,
+                ),
+                3,
+            ),
+            "Protein concentration [g/L]": np.round(s_prot, 3),
+            "Protein soluble [g/L]": np.round(s_prot * 0.6, 3),
+            "Protein IB [g/L]": np.round(s_prot * 0.4, 3),
+            "Sample volume [mL]": 10.0,
+        }
+    ).to_excel(data_dir / "samples.xlsx", index=False)
+
+    (dest / "run_config.yaml").write_text(
+        "metadata:\n"
+        '  fermentation_id: "synthetic_demo"\n'
+        '  strain: "E. coli BL21(DE3) [simulated]"\n'
+        "processing:\n"
+        "  processing_parameters:\n"
+        "    reactor_setup:\n"
+        "      initial_volume_ml: 1500.0\n"
+        "    balance_mode: 'feed_source'\n"
+        "    feed_definitions:\n"
+        "      feed_1:\n"
+        "        name: 'Glucose feed (400 g/L)'\n"
+        "        density_g_ml: 1.15\n"
+        "    base_titrant:\n"
+        "      compound: 'NH4OH'\n"
+        "      molarity_mol_l: 6.95\n"
+        "      density_g_ml: 0.947\n"
+        "      total_added_g: 15.0\n"
+        "    product_properties:\n"
+        "      name: 'demo_protein'\n"
+        "  induced_phases:\n"
+        "    - 'induced Fedbatch'\n",
+        encoding="utf-8",
+    )
+    return dest
+
+
+@pytest.fixture(scope="session")
+def synthetic_run(tmp_path_factory):
+    """Session-wide synthetic fermentation run folder for pipeline tests."""
+    return _build_synthetic_run(tmp_path_factory.mktemp("synthetic_run"))

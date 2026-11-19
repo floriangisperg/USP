@@ -27,12 +27,12 @@ Configuration lives in `pyproject.toml` (`[tool.black]`, `[tool.isort]`,
 ## Run an example end-to-end
 
 ```bash
-python -m upstream_analysis.pipeline examples/real_data_example
-python examples/synthetic_example/verify_results.py
+python -m upstream_analysis.pipeline examples/scFvM/ferm_01
 ```
 
-`real_data_example` ships its own `data/` and writes `processed_data.csv`,
-`samples_points_data.csv`, and per-parameter plots to `results/`.
+End-to-end pipeline + consolidation coverage (on a synthetic run) is part
+of the test suite: `tests/unit/test_pipeline.py`,
+`tests/unit/test_consolidation.py`.
 
 ## Known limitations
 
