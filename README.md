@@ -45,8 +45,7 @@ pip install -e ".[dev]"
 The fastest way to see the full pipeline is the real-data example:
 
 ```bash
-cd examples/real_data_example
-python real_data_analysis.py
+python -m upstream_analysis.pipeline examples/real_data_example
 ```
 
 For a 30-second end-to-end check (simulated data, committed, runs in CI):
@@ -106,9 +105,9 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 | Directory | What it shows |
 |---|---|
 | `examples/real_data_example/` | Minimal end-to-end run — ships its own `data/`, runnable as-is |
-| `examples/doe_example/` | 12 scFv DoE fermentation runs; `python analyze_doe_run.py ferm_01` analyzes one run. Consolidated raw exports live in `all_data/` |
-| `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high): analyze each run, then `consolidate_results.py` builds combined workbooks + a bokeh comparison dashboard |
-| `examples/LDH/` / `examples/Xiso/` | Per-product analyses: run scripts plus `consolidate_results.py` each |
+| `examples/doe_example/` | 12 scFv DoE fermentation runs. Consolidated raw exports live in `all_data/` |
+| `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high) with a consolidated comparison dashboard |
+| `examples/LDH/` / `examples/Xiso/` | Per-product campaigns: run configs + consolidation outputs |
 
 USP is intentionally scoped to **data analysis**. The modeling work that
 grew out of this data (mechanistic IB model, LDH fits, the M0 model campaign)

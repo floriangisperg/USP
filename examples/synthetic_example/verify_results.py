@@ -22,7 +22,8 @@ from analyze_synthetic_run import run_analysis  # noqa: E402
 
 
 def main() -> int:
-    df = run_analysis(EXAMPLE_DIR)
+    result = run_analysis(EXAMPLE_DIR)
+    df = result.processed
 
     checks = []
 

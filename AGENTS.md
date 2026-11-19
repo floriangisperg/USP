@@ -51,19 +51,27 @@ checks. This is also the CI smoke test.
 
 ### Running Examples
 
+The pipeline and consolidation live in the package — examples are data +
+configs, no scripts:
+
 ```bash
 # Synthetic — fastest check, committed data, no overrides needed
 python examples/synthetic_example/verify_results.py
 
 # Real data — self-contained example with real measurements
-cd examples/real_data_example && python real_data_analysis.py
+python -m upstream_analysis.pipeline examples/real_data_example
 
-# DOE example — run folder is a CLI argument
-cd examples/doe_example && python analyze_doe_run.py ferm_01
+# One run of a campaign
+python -m upstream_analysis.pipeline examples/doe_example/ferm_01
 
-# hGH example — two runs + consolidated comparison dashboard
-cd examples/hgh && python analyze_hgh_run.py R5_lowlow && python consolidate_results.py
+# Consolidate a campaign into workbooks + comparison dashboard
+python -m upstream_analysis.consolidation examples/hgh --prefix hGH
 ```
+
+Every analysis writes `processed_data.csv`, `samples_points_data.csv` and
+overview plots to a run-specific `results/` directory. The other examples
+(LDH, Xiso) follow the same pattern; their raw data is gitignored and lives
+only where the analyses were run.
 
 Every analysis writes `processed_data.csv`, `samples_points_data.csv` and
 overview plots to a run-specific `results/` directory. The other examples
@@ -123,8 +131,17 @@ raw files → Parser → Cleaner → Aligner → Processor → Visualizer → re
 
 Supporting layers under `core/`: `constants.py` (centralized physical
 constants — no magic numbers in calculations), `validation.py` (DataFrame/
-column/numeric validators), `exceptions.py` (`USPConfigError`,
-`USPDataError`, `USPCalculationError`).
+column/numeric validators, incl. `coerce_numeric_columns`), `exceptions.py`
+(`USPConfigError`, `USPDataError`, `USPCalculationError`).
+
+Two convenience layers wrap the chain so scripts never re-implement the
+orchestration: **`pipeline.py`** (`run_pipeline` / `run_directory` — one
+call per run folder, auto-detects config + data files) and
+**`consolidation.py`** (`consolidate_runs` — combined workbooks + bokeh
+comparison dashboard for a campaign). Prefer them over orchestrating the
+stages manually; both are re-exported from the package root and usable as
+`python -m upstream_analysis.pipeline <run_dir>` /
+`python -m upstream_analysis.consolidation <campaign> --prefix <P>`.
 
 > `data/processor.py` is a thin facade over the focused calculation modules
 > in `data/calculations/` (`feed`, `volume`, `induction`, `protein`, `gas`,

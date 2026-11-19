@@ -27,8 +27,8 @@ Configuration lives in `pyproject.toml` (`[tool.black]`, `[tool.isort]`,
 ## Run an example end-to-end
 
 ```bash
-cd examples/real_data_example && python real_data_analysis.py
-cd examples/doe_example     && python analyze_doe_run.py
+python -m upstream_analysis.pipeline examples/real_data_example
+python examples/synthetic_example/verify_results.py
 ```
 
 `real_data_example` ships its own `data/` and writes `processed_data.csv`,

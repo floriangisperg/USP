@@ -10,8 +10,7 @@ example:
 
 ```bash
 uv sync --extra dev --extra dashboard
-cd examples/real_data_example
-python real_data_analysis.py
+python examples/synthetic_example/verify_results.py
 ```
 
 If that produces `results/processed_data.csv` and plots, your environment
@@ -161,18 +160,32 @@ measurement columns, each enabling downstream calculations:
 
 ## Step 5 — Run it
 
-The most convenient starting script is `examples/hgh/analyze_hgh_run.py`:
-it auto-detects the single CSV (+ optional xlsx) in `data/`, takes the run
-folder as a CLI argument, and tolerates a missing offline file. Copy it
-into your run's parent folder and:
+The pipeline is a package entry point — no example script needed:
 
 ```bash
-python analyze_hgh_run.py my_experiment
+python -m upstream_analysis.pipeline runs/my_experiment
 ```
 
-Or use the pipeline directly from Python — see [examples/README.md
-→ Advanced Usage](../examples/README.md#advanced-usage) for the six-line
-component chain.
+Auto-detects `run_config.yaml` and the single online CSV (plus optional
+`data/samples.xlsx`) and writes `results/processed_data.csv`,
+`samples_points_data.csv` and overview plots. To consolidate a campaign of
+runs into combined workbooks and a comparison dashboard:
+
+```bash
+python -m upstream_analysis.consolidation runs/ --prefix my_campaign
+```
+
+For programmatic use — explicit paths, custom plot selection, unusual
+layouts — use the API directly:
+
+```python
+from upstream_analysis import load_config, run_pipeline
+
+config = load_config("runs/my_experiment/run_config.yaml")
+result = run_pipeline(config, "data/rawdata.csv", offline_path="data/samples.xlsx",
+                      output_dir="results")
+result.processed  # aligned + derived DataFrame
+```
 
 ## Step 6 — Sanity-check the results
 
