@@ -296,7 +296,9 @@ class InteractiveDashboard:
         if len(run_names) > 1 and all_renders:
             flat = [r for r, _ in all_renders]
             idx = [ri for _, ri in all_renders]
-            cbg = CheckboxGroup(labels=run_names, active=list(range(len(run_names))))
+            cbg = CheckboxGroup(
+                labels=run_names, active=list(range(len(run_names))), inline=True
+            )
             code = (
                 "const a = cbg.active;\n"
                 f"const idx = {json.dumps(idx)};\n"
