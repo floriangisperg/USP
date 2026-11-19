@@ -21,6 +21,12 @@ The folder convention all examples follow — campaign → run folders →
 `data/` + `results/` — is specified in
 [`docs/DATA_LAYOUT.md`](../docs/DATA_LAYOUT.md).
 
+Each example contains only what an example needs (analysis + consolidation
+scripts, run configs). Generated outputs, logs and one-off research
+analyses that had accumulated here were moved to
+`../../Archive/USP_artifacts/` — except in `hgh/`, whose campaign is still
+current and keeps its outputs.
+
 ## Overview
 
 - **Synthetic Example**: simulated run with committed data — fastest end-to-end check, doubles as the CI smoke test
@@ -136,8 +142,8 @@ target_run_folder_name: str = "all"  # Options: "all", "ferm_01", "F07", etc.
 ```
 LDH/
 ├── analyze_ldh_run.py              # Main analysis script
-├── analyze_partition_temp.py       # Temperature partition analysis
-├── analyze_partition_temp_bounded.py # Bounded temperature analysis
+├── consolidate_results.py          # Consolidates all runs
+├── pump2_raw_cache.pkl             # Raw-signal cache (mtime-keyed)
 ├── F07/                            # Production run folders
 │   ├── run_config.yaml
 │   ├── data/
