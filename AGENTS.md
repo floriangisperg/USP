@@ -3,94 +3,107 @@
 Guidance for Claude Code (and human contributors) working in this repository.
 Start here for an overview; the user-facing README is [`README.md`](README.md).
 
-## Project Overview
+## Scope
 
 USP (Upstream Processing) is a Python package for analyzing **E. coli
-fermentation data**. It processes bioreactor sensor data (online, CSV) and
-laboratory measurements (offline, Excel) to calculate derived parameters like
-feed rates, reactor volume, gas-exchange rates, carbon balance, and induction
-states. Python ≥ 3.12.
+fermentation data**: it ingests bioreactor sensor exports (online CSV) and
+lab measurements from samples (offline Excel), aligns them, and computes
+derived process parameters (feed, volume, gas-exchange rates, carbon
+balance, yields, induction timing). That is the whole scope — **data
+analysis, not modeling**. The mechanistic-modeling work that grew out of
+this data was deliberately moved out (see `../Archive/USP_modeling/`); do
+not add models, simulators, or fitting code here. Python ≥ 3.12.
+
+## Documentation map
+
+| Document | What it covers |
+|---|---|
+| [`README.md`](README.md) | Install, quickstart, feature overview |
+| [`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md) | **Canonical** campaign/run folder convention — where files go, what git tracks |
+| [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md) | Step-by-step: raw bioreactor export → results (column mapping, parsing, minimal config, sanity checks) |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every configuration option |
+| [`docs/VERIFICATION_STATUS.md`](docs/VERIFICATION_STATUS.md) | How to verify the package (tests, lint, CI) |
 
 ## Common Development Commands
 
 ### Environment Setup
 
-The project uses [uv](https://docs.astral.sh/uv/) (`uv.lock` is committed for
-reproducibility):
+The project uses [uv](https://docs.astral.sh/uv/) (`uv.lock` is committed
+for reproducibility):
 
 ```bash
-uv sync                       # create env + install from uv.lock (recommended)
-uv pip install -e ".[dev]"    # editable install with dev tools
+uv sync --extra dev --extra dashboard   # full env: dev tools + bokeh
 ```
 
-Plain pip fallback:
+Two extras exist: `dev` (pytest, black, isort, flake8, pandas-stubs) and
+`dashboard` (bokeh). The full 136-test suite and the consolidation
+dashboards need **both** — without `dashboard`, the 11 dashboard tests
+skip. Plain pip fallback: `pip install -e ".[dev]" ".[dashboard]"`.
+
+### Verifying Your Setup
 
 ```bash
-pip install -e ".[dev]"       # runtime + dev deps
-pip install -e ".[dashboard]" # adds bokeh (interactive HTML dashboards)
+python examples/synthetic_example/verify_results.py   # end-to-end, ~30 s
 ```
+
+Runs the full pipeline on committed simulated data and asserts 11 sanity
+checks. This is also the CI smoke test.
 
 ### Running Examples
 
 ```bash
-# Real-data example — self-contained, ships its own data/ and is runnable as-is
-cd examples/real_data_example
-python real_data_analysis.py
+# Synthetic — fastest check, committed data, no overrides needed
+python examples/synthetic_example/verify_results.py
 
-# DOE example — analyze a specific fermentation run
-cd examples/doe_example
-python analyze_doe_run.py ferm_01     # folder name is a CLI argument
+# Real data — self-contained example with real measurements
+cd examples/real_data_example && python real_data_analysis.py
 
-# hGH example — two runs + consolidated comparison
-cd examples/hgh
-python analyze_hgh_run.py R5_lowlow   # or R6_highhigh (default)
-python consolidate_results.py
+# DOE example — run folder is a CLI argument
+cd examples/doe_example && python analyze_doe_run.py ferm_01
+
+# hGH example — two runs + consolidated comparison dashboard
+cd examples/hgh && python analyze_hgh_run.py R5_lowlow && python consolidate_results.py
 ```
 
-Each example writes `processed_data.csv`, `samples_points_data.csv`, and
-overview plots to a run-specific `results/` directory.
+Every analysis writes `processed_data.csv`, `samples_points_data.csv` and
+overview plots to a run-specific `results/` directory. The other examples
+(LDH, Xiso) follow the same pattern; their raw data is gitignored and lives
+only where the analyses were run.
 
 ### Testing
 
 ```bash
-pytest                        # full suite (136 tests)
+pytest                        # full suite (136 tests; 125 without bokeh)
 pytest tests/unit             # per-module unit tests only
 pytest --cov=upstream_analysis
 ```
 
-Tests use **in-memory fixtures** (no external data files required), defined in
-`tests/conftest.py`. Layout:
+Tests use **in-memory fixtures** (no external data files required), defined
+in `tests/conftest.py`: `tests/unit/` per module (parser, cleaning,
+alignment, processor, visualization, dashboard), `tests/integration/`
+end-to-end, `tests/fixtures/` static configs.
 
-```
-tests/
-├── conftest.py              # shared fixtures (configs, sample DataFrames)
-├── fixtures/                # static config fixtures
-├── unit/                    # test_parser, test_cleaning, test_alignment,
-│                            #   test_processor, test_visualization, test_dashboard
-└── integration/             # test_full_pipeline (end-to-end)
-```
-
-### Code Quality
+### Code Quality (CI-gated)
 
 ```bash
-black src/ tests/          # package code: strict, 88 chars, CI-gated
+black src/ tests/       # package code: strict, 88 chars
 isort src/ tests/
-flake8 src/ tests/
+flake8 src/ tests/      # exits non-zero = CI fails
 ```
 
 Analysis scripts under `examples/` are format-checked (black/isort) but
 exempted from pedantic flake8 codes via `.flake8` per-file-ignores — they
-are research scripts, not package code.
-
-Configuration: `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]` in
-`pyproject.toml`; flake8 in `.flake8` (max line length 100 to tolerate legacy
-docstring prose, black-compatible code, per-file exemptions).
+are research scripts, not package code. Configuration: `[tool.black]`,
+`[tool.isort]`, `[tool.pytest.ini_options]` in `pyproject.toml`; flake8 in
+`.flake8` (max line length 100 to tolerate legacy docstring prose).
 
 ## Architecture Overview
 
 Modular pipeline; each stage takes the merged config and returns a DataFrame.
 
-### Core Processing Pipeline
+```
+raw files → Parser → Cleaner → Aligner → Processor → Visualizer → results/
+```
 
 1. **Parsing** (`data/parser.py`) — raw data ingestion from CSV (bioreactor)
    and Excel (offline samples), via `BioreactorDataParser` /
@@ -105,83 +118,58 @@ Modular pipeline; each stage takes the merged config and returns a DataFrame.
    (CER/OUR/RQ), specific rates, carbon balance, growth/product yields
    (`FermentationDataProcessor`).
 5. **Visualization** — per-parameter time-series plots
-   (`visualization/plotting.py`, `DataVisualizer.plot_selected_parameters`)
-   and self-contained interactive HTML dashboards
-   (`visualization/dashboard.py`, `InteractiveDashboard`, optional `bokeh`
-   via the `dashboard` extra).
+   (`visualization/plotting.py`) and self-contained interactive HTML
+   dashboards (`visualization/dashboard.py`, optional `bokeh`).
 
-Supporting layers under `core/`:
+Supporting layers under `core/`: `constants.py` (centralized physical
+constants — no magic numbers in calculations), `validation.py` (DataFrame/
+column/numeric validators), `exceptions.py` (`USPConfigError`,
+`USPDataError`, `USPCalculationError`).
 
-- `core/constants.py` — centralized physical constants (molar volumes, molar
-  masses, process defaults). No magic numbers in calculations.
-- `core/validation.py` — DataFrame/column/numeric/config validators.
-- `core/exceptions.py` — `USPError` hierarchy: `USPConfigError`,
-  `USPDataError`, `USPCalculationError`.
-
-> Note: `data/processor.py` is a thin facade (~170 lines) over the focused
-> calculation modules in `data/calculations/` (`feed`, `volume`, `induction`,
-> `protein`, `gas`, `carbon_balance`, `rates_yields`; shared config access in
-> `_config`). `FermentationDataProcessor` keeps the historical API
-> (`process_data(df)` plus per-step `_<name>(df)` methods the unit tests
-> exercise) and delegates each step. The **order of steps in `process_data`
-> is load-bearing** (later calculations consume columns built earlier) —
-> preserve it when adding a calculation, and put the math in
-> `data/calculations/`, not in the facade.
+> `data/processor.py` is a thin facade over the focused calculation modules
+> in `data/calculations/` (`feed`, `volume`, `induction`, `protein`, `gas`,
+> `carbon_balance`, `rates_yields`; shared config access in `_config`).
+> `FermentationDataProcessor` keeps the historical API (`process_data(df)`
+> plus per-step `_<name>(df)` methods the unit tests exercise). The **order
+> of steps in `process_data` is load-bearing** (later calculations consume
+> columns built earlier) — preserve it when adding a calculation.
 
 ### Configuration System
 
-- **Default config**: [`src/upstream_analysis/config/default_config.yaml`](src/upstream_analysis/config/default_config.yaml)
-- **Run configs**: run-specific YAML in example directories (`run_config.yaml`)
-- **Merging**: experiment configs override defaults via hierarchical merge in
-  [`config/loader.py`](src/upstream_analysis/config/loader.py) (`load_config`)
-
-Top-level sections: `parsing`, `column_mapping`, `cleaning`, `alignment`,
-`processing`, `analysis`, `visualization` (last two are placeholders). Full
-parameter reference in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
-
-### Data Flow
-
-```
-raw files → Parser → Cleaner → Aligner → Processor → Visualizer → results/
-```
-
-- Each component takes the merged config and returns processed DataFrames.
-- Final output: `processed_data.csv` and `samples_points_data.csv` (CSV with
-  `sep=';'`, `decimal=','`) plus `.png` plots in run-specific `results/`.
-
-### Key Components
-
-- **`FermentationDataProcessor`** — facade orchestrating the
-  `data/calculations/` modules (feed, base, volume, induction, protein,
-  off-gas, carbon balance, rates/yields) in a fixed sequence.
-- **`FermentationDataCleaner`** — cleaning and process-time derivation.
-- **`BioreactorDataParser`** / **`OfflineMeasurementsParser`** — CSV/Excel
-  parsing with configurable separators and date formats.
-- **`DataAligner`** — temporal alignment with configurable tolerance.
-- **`DataVisualizer`** — multi-parameter time-series plotting.
-
-All of the above are re-exported from `upstream_analysis/__init__.py`.
+Two-level hierarchy merged at runtime by `load_config`
+(`config/loader.py`): package defaults in
+[`src/upstream_analysis/config/default_config.yaml`](src/upstream_analysis/config/default_config.yaml)
+overridden per run by `run_config.yaml`. Only `processing.
+processing_parameters.reactor_setup.initial_volume_ml` is mandatory;
+everything else has defaults. The defaults' `column_mapping` documents the
+standard internal column names (it ships preconfigured for DASGIP-style
+exports).
 
 ### Experiment Structure
 
 ```
-examples/<example>/<run>/
-├── run_config.yaml     # run-specific parameter overrides
-├── data/               # raw CSV / Excel files (gitignored — large/proprietary)
-└── results/            # generated outputs (CSV + plots, gitignored)
+<campaign>/<run_id>/
+├── run_config.yaml     # tracked — sits NEXT TO data/, never inside it
+├── data/               # raw inputs (gitignored)
+└── results/            # generated (gitignored, auto-created)
 ```
 
-> `examples/**/data/` and `**/results/` outputs are gitignored. To ship data
-> intentionally (as `real_data_example` does), use `git add -f`.
+The full convention (campaign level, file naming, what git tracks, how to
+grow from one run to a campaign) is specified in
+[`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md) — keep that document
+authoritative rather than duplicating layout rules here. Raw data stays out
+of the repo; the committed exceptions are `real_data_example/` and
+`synthetic_example/` (both `git add -f`).
 
 ## Notes for Contributors
 
-- Derived calculations live in `data/calculations/` (feed, volume, induction,
-  protein, gas, carbon_balance, rates_yields). Add new math there — the
-  `FermentationDataProcessor` facade in `data/processor.py` only orchestrates
-  the steps, in a load-bearing order.
-- Add physical constants to `core/constants.py` rather than inlining magic
-  numbers.
-- Raise typed exceptions from `core/exceptions.py` and validate inputs with
-  `core/validation.py` — avoid silent NaN returns.
-- Keep the test suite green: run `pytest` before committing.
+- **Add derived-calculation math to `data/calculations/`**, not the facade.
+  Keep the step order in `process_data` intact.
+- Add physical constants to `core/constants.py`; raise typed exceptions
+  from `core/exceptions.py`; validate with `core/validation.py` — avoid
+  silent NaN returns.
+- **Keep the suite green**: `pytest`, then `black/isort/flake8` on
+  `src/ tests/`, before committing. CI runs all of it plus the synthetic
+  smoke test on every push/PR.
+- Docs are part of the contract: when behavior or layout changes, update
+  `README.md`, the relevant `docs/*.md`, and this file in the same commit.
