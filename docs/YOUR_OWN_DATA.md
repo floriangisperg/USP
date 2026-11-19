@@ -27,7 +27,9 @@ scripts — the full picture is in [DATA_LAYOUT.md](DATA_LAYOUT.md):
 
 ```
 my_experiment/
-├── run_config.yaml     # run-specific settings (see Step 3)
+├── run_config.yaml     # run-specific settings (see Step 3) — sits NEXT TO
+│                       #   data/, not inside it (data/ is gitignored; the
+│                       #   config is what git tracks)
 ├── data/
 │   ├── <online>.csv    # continuous bioreactor sensor export
 │   └── <offline>.xlsx  # lab measurements from sampled time points

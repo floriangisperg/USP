@@ -16,7 +16,8 @@ the canonical description.
 ├── <campaign>_consolidated_dashboard.html    # generated
 │
 ├── <run_id>/                     # ── one folder per fermentation ──
-│   ├── run_config.yaml           # run settings (COMMITTED)
+│   ├── run_config.yaml           # run settings (COMMITTED) — lives HERE,
+│   │                             #   next to data/, never inside it
 │   ├── data/                     # raw inputs (gitignored)
 │   │   ├── <anything>.csv        #   online bioreactor export (name free)
 │   │   └── samples.xlsx          #   offline lab measurements
@@ -41,7 +42,7 @@ committed simulated data (it is also the CI smoke test).
 
 | Item | Location | Required? | Notes |
 |---|---|---|---|
-| `run_config.yaml` | `<run_id>/` | required by the scripts | name/position fixed; contents mostly optional (only `initial_volume_ml` is mandatory) |
+| `run_config.yaml` | `<run_id>/` (root, **next to** `data/` — not inside it: `data/` is gitignored, the config is what git tracks) | required by the scripts | name/position fixed; contents mostly optional (only `initial_volume_ml` is mandatory) |
 | online export | `<run_id>/data/*.csv` | required | **filename is free** — scripts auto-detect the single CSV |
 | offline measurements | `<run_id>/data/samples.xlsx` | optional | conventionally named `samples.xlsx` (scripts glob for it); absent → pipeline runs online-only |
 | `results/` | `<run_id>/` | auto-created | never commit; delete freely and re-run |
