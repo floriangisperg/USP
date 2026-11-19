@@ -128,27 +128,92 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     # Degenerate-window fallback: the feed bottle may have been placed on the
     # balance only *after* feeding started (balance reads 0 through batch and
     # early fed-batch, then jumps when the bottle is set on). The window peak
-    # is then 0 and feed would clip to zero for the whole run — use the peak
-    # over all feeding-phase rows instead.
+    # is then 0 and feed would clip to zero for the whole run.
+    #
+    # Two-tier recovery:
+    #   1. If the feed-pump duration signal is available and the balance is
+    #      linear in it on the measured segment (r < -0.9), the pump doubles
+    #      as a mass meter: reconstruct the *pre-placement* feed from the
+    #      pump duration and synthesize the balance history so feed starts at
+    #      the true feeding start.
+    #   2. Otherwise, use the peak over all feeding-phase rows (feed then
+    #      starts at bottle placement — flagged loudly).
+    pump_reconstruction: dict | None = None
     if not balance_window.empty and balance_at_tare_point <= 0:
         phase_balance = balance_filled[feeding_phases_mask].dropna()
-        if not phase_balance.empty and phase_balance.max() > 0:
-            balance_at_tare_point = phase_balance.max()
-            tare_index_approx = phase_balance.idxmax()
-            logger.warning(
-                "Window peak is degenerate (%.2f g) — feed bottle likely placed "
-                "after feeding start. Using peak over all feeding phases "
-                "(%.2f g at index %s) as tare.",
-                balance_window.max(),
-                balance_at_tare_point,
-                tare_index_approx,
-            )
+        dur_col = "Feed pump duration [-]"
+        # 50 g: far above balance noise/pre-tare junk (~8 g), far below the
+        # feed-bottle weight (hundreds of g) — excludes the settle-in transient.
+        placed_rows = balance_filled > 50.0
+        fit_ok = False
+        if (
+            dur_col in df_out.columns
+            and placed_rows.sum() >= 10
+            and feeding_phases_mask.any()
+        ):
+            dur_num = pd.to_numeric(df_out[dur_col], errors="coerce")
+            if dur_num.notna().sum() >= 10:
+                x = dur_num[placed_rows].to_numpy(dtype=float)
+                y = balance_filled[placed_rows].to_numpy(dtype=float)
+                if np.std(x) > 0:
+                    slope, intercept = np.polyfit(x, y, 1)
+                    r = float(np.corrcoef(x, y)[0, 1])
+                    # balance = intercept + slope*duration with slope < 0
+                    if slope < 0 and r < -0.9:
+                        fit_ok = True
+                        k_per_s = -slope  # grams delivered per pump-second
+                        balance_at_tare_point = phase_balance.max()
+                        tare_index_approx = phase_balance.idxmax()
+                        dur_start = float(dur_num.loc[first_feed_index])
+                        dur_tare = float(dur_num.loc[tare_index_approx])
+                        pump_reconstruction = {
+                            "k_per_s": k_per_s,
+                            "dur_start": dur_start,
+                            "dur_tare": dur_tare,
+                        }
+                        logger.warning(
+                            "Balance was measured only from t=%.2f h (bottle "
+                            "placed late; degenerate window peak %.2f g). "
+                            "Reconstructing pre-placement feed from '%s' "
+                            "(fit: balance = %.1f - %.4f g per pump-s, "
+                            "r=%.3f). Feed now starts with the feeding phase.",
+                            df_out.loc[first_feed_index, time_col],
+                            balance_window.max(),
+                            dur_col,
+                            intercept,
+                            k_per_s,
+                            r,
+                        )
+        if not fit_ok:
+            if not phase_balance.empty and phase_balance.max() > 0:
+                balance_at_tare_point = phase_balance.max()
+                tare_index_approx = phase_balance.idxmax()
+                logger.warning(
+                    "Window peak is degenerate (%.2f g) — feed bottle likely "
+                    "placed after feeding start and no usable pump-duration "
+                    "signal. Using peak over all feeding phases (%.2f g at "
+                    "index %s) as tare; feed starts at bottle placement.",
+                    balance_window.max(),
+                    balance_at_tare_point,
+                    tare_index_approx,
+                )
 
     # --- Create Modified Balance Series ---
     modified_balance = balance_filled.copy()
-    modified_balance.loc[modified_balance.index < tare_index_approx] = (
-        balance_at_tare_point
-    )
+    if pump_reconstruction is not None:
+        # Synthesize the unmeasured history: bottle weight declining with
+        # delivered feed (k per pump-second) back from the placement plateau.
+        dur_num = pd.to_numeric(df_out["Feed pump duration [-]"], errors="coerce")
+        k_per_s = pump_reconstruction["k_per_s"]
+        dur_tare = pump_reconstruction["dur_tare"]
+        synth = balance_at_tare_point + k_per_s * (dur_tare - dur_num)
+        modified_balance.loc[modified_balance.index < tare_index_approx] = synth[
+            modified_balance.index < tare_index_approx
+        ]
+    else:
+        modified_balance.loc[modified_balance.index < tare_index_approx] = (
+            balance_at_tare_point
+        )
     modified_balance = modified_balance.ffill().fillna(
         balance_at_tare_point
     )  # Ensure full series
@@ -203,6 +268,24 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     df_out.loc[balance_nan_mask, "Feed [g]"] = (
         np.nan
     )  # Restore NaNs from original balance
+
+    if pump_reconstruction is not None:
+        # Pump-based feed for the unmeasured pre-placement rows, plus a
+        # continuity offset for the measured segment (feed was already
+        # delivered before the bottle was placed on the balance).
+        dur_num = pd.to_numeric(df_out["Feed pump duration [-]"], errors="coerce")
+        k_per_s = pump_reconstruction["k_per_s"]
+        offset = k_per_s * (
+            pump_reconstruction["dur_tare"] - pump_reconstruction["dur_start"]
+        )
+        pre_mask = (df_out.index >= first_feed_index) & (
+            df_out.index < tare_index_approx
+        )
+        df_out.loc[pre_mask, "Feed [g]"] = (
+            k_per_s * (dur_num.loc[pre_mask] - pump_reconstruction["dur_start"])
+        ).clip(lower=0)
+        post_mask = df_out.index >= tare_index_approx
+        df_out.loc[post_mask, "Feed [g]"] = offset + df_out.loc[post_mask, "Feed [g]"]
 
     # Calculate Feed [mL]
     df_out["Feed [mL]"] = df_out["Feed [g]"] / feed_density
