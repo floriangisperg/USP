@@ -37,8 +37,9 @@ logger = logging.getLogger(__name__)
 
 # --- Optional Bokeh dependency -------------------------------------------------
 try:  # pragma: no cover - exercised when bokeh is installed
-    from bokeh.layouts import column, gridplot
+    from bokeh.layouts import column, gridplot, row
     from bokeh.models import (
+        Button,
         CheckboxGroup,
         CustomJS,
         DataRange1d,
@@ -307,10 +308,19 @@ class InteractiveDashboard:
             cbg.js_on_change(
                 "active", CustomJS(args={"rs": flat, "cbg": cbg}, code=code)
             )
+            all_idx = list(range(len(run_names)))
+            btn_all = Button(label="Check all", width=90)
+            btn_all.js_on_click(
+                CustomJS(
+                    args={"cbg": cbg, "all_idx": all_idx}, code="cbg.active = all_idx;"
+                )
+            )
+            btn_none = Button(label="Uncheck all", width=90)
+            btn_none.js_on_click(CustomJS(args={"cbg": cbg}, code="cbg.active = [];"))
             hint = Div(
                 text="<b>Show runs:</b> (uncheck to hide a run across this whole tab)"
             )
-            body = column(hint, cbg, body)
+            body = column(hint, row(btn_all, btn_none), cbg, body)
 
         return TabPanel(title=title, child=body)
 

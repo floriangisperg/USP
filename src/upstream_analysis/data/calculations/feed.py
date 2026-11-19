@@ -125,6 +125,25 @@ def calculate_feed(df: pd.DataFrame, config: dict) -> pd.DataFrame:
             f"(near index {tare_index_approx}) as initial feed weight."
         )
 
+    # Degenerate-window fallback: the feed bottle may have been placed on the
+    # balance only *after* feeding started (balance reads 0 through batch and
+    # early fed-batch, then jumps when the bottle is set on). The window peak
+    # is then 0 and feed would clip to zero for the whole run — use the peak
+    # over all feeding-phase rows instead.
+    if not balance_window.empty and balance_at_tare_point <= 0:
+        phase_balance = balance_filled[feeding_phases_mask].dropna()
+        if not phase_balance.empty and phase_balance.max() > 0:
+            balance_at_tare_point = phase_balance.max()
+            tare_index_approx = phase_balance.idxmax()
+            logger.warning(
+                "Window peak is degenerate (%.2f g) — feed bottle likely placed "
+                "after feeding start. Using peak over all feeding phases "
+                "(%.2f g at index %s) as tare.",
+                balance_window.max(),
+                balance_at_tare_point,
+                tare_index_approx,
+            )
+
     # --- Create Modified Balance Series ---
     modified_balance = balance_filled.copy()
     modified_balance.loc[modified_balance.index < tare_index_approx] = (
