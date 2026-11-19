@@ -51,7 +51,8 @@ python real_data_analysis.py
 
 **Bringing your own fermentation data?** Follow
 [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md) and scaffold a run folder
-with `python scripts/new_run.py <name>`.
+with `python scripts/new_run.py <name>`. The campaign/run folder convention
+is specified in [`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md).
 
 This parses `data/rawdata.csv` + `data/samples.xlsx`, runs the full pipeline
 using `run_config.yaml`, and writes results to `results/`:
@@ -158,6 +159,10 @@ examples/<example>/<run>/
 ├── data/               # raw CSV / Excel files
 └── results/            # generated outputs (CSV + plots)
 ```
+
+The full data-organisation convention (campaign level, file naming, what
+git tracks) is specified in
+[`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md).
 
 ## Testing
 

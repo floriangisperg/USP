@@ -17,6 +17,10 @@ campaigns*; their raw data is gitignored and lives outside the repo, so
 they run only where that data exists (see `all_data/` note in the main
 README).
 
+The folder convention all examples follow — campaign → run folders →
+`data/` + `results/` — is specified in
+[`docs/DATA_LAYOUT.md`](../docs/DATA_LAYOUT.md).
+
 ## Overview
 
 - **Real Data Example**: self-contained end-to-end run — start here

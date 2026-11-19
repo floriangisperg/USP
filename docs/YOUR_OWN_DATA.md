@@ -21,7 +21,9 @@ works — now bring your own data.
 
 ## What USP expects
 
-One run = one folder with two input files and one config:
+One run = one folder with two input files and one config. For multi-run
+campaigns, run folders sit inside a campaign folder next to shared analysis
+scripts — the full picture is in [DATA_LAYOUT.md](DATA_LAYOUT.md):
 
 ```
 my_experiment/
