@@ -49,6 +49,12 @@ cd examples/real_data_example
 python real_data_analysis.py
 ```
 
+For a 30-second end-to-end check (simulated data, committed, runs in CI):
+
+```bash
+python examples/synthetic_example/verify_results.py
+```
+
 **Bringing your own fermentation data?** Follow
 [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md) and scaffold a run folder
 with `python scripts/new_run.py <name>`. The campaign/run folder convention

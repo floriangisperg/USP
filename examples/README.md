@@ -23,7 +23,8 @@ The folder convention all examples follow — campaign → run folders →
 
 ## Overview
 
-- **Real Data Example**: self-contained end-to-end run — start here
+- **Synthetic Example**: simulated run with committed data — fastest end-to-end check, doubles as the CI smoke test
+- **Real Data Example**: self-contained end-to-end run with real data — start here for the real-world shape
 - **DOE Example**: 12 Design-of-Experiments runs with standardized analysis
 - **hGH Example**: two fed-batch runs + consolidated comparison dashboard
 - **LDH Example**: real production data with advanced carbon balance

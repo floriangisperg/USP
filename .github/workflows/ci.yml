@@ -27,3 +27,6 @@ jobs:
 
       - name: Test
         run: uv run pytest -q
+
+      - name: Smoke test (synthetic example end-to-end)
+        run: uv run python examples/synthetic_example/verify_results.py

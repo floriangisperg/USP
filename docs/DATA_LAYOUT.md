@@ -34,6 +34,8 @@ Real examples of this layout: `examples/hgh/` (cleanest — two runs),
 `examples/LDH/` and `examples/Xiso/`. A single-fermentation analysis is the
 same minus the campaign level: that is exactly `examples/real_data_example/`
 and what `python scripts/new_run.py <name>` scaffolds under `runs/`.
+`examples/synthetic_example/` is the minimal single-run version with
+committed simulated data (it is also the CI smoke test).
 
 ## What actually has to be where
 
