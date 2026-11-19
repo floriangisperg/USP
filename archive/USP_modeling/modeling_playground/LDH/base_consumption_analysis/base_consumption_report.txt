@@ -1,0 +1,95 @@
+BASE CONSUMPTION ANALYSIS REPORT
+================================================================================
+
+Number of runs analyzed: 6
+Date: 2025-12-30 12:29
+
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+1. BALANCE SIGNAL AS PRIMARY MEASURE:
+   - The Balance [g] signal IS usable to track base consumption
+   - Weight decrease corresponds to base being pumped out
+   - Typical consumption: 501.5 g per run
+
+2. CALIBRATION FACTOR (Pump Duration → Volume):
+   - Mean: 0.018598 g per pump-unit
+   - Std Dev: 0.000865 g per pump-unit
+   - CV: 4.65%
+   - CONSISTENT across runs - can be used for estimation!
+
+3. RELATIONSHIP WITH FEED/BIOMASS:
+   - Base vs Glucose correlation: r = 0.991
+   - Strong correlation expected: more glucose fed → more acid produced → more base needed
+
+4. RECOMMENDATIONS:
+   a) Use Balance [g] signal as primary measure of base consumption
+   b) Convert weight change to volume using density of base solution
+   c) Pump duration can be used as backup if balance fails
+   d) Calibration factor: 0.018598 g/pump-unit (average)
+
+================================================================================
+DETAILED RUN STATISTICS
+================================================================================
+
+ferm_02:
+  Base Consumption: 331.76 g
+  Avg Rate: 13.08 g/h
+  Calibration: 0.018343 g/pump-unit
+
+ferm_03:
+  Base Consumption: 605.82 g
+  Avg Rate: 24.24 g/h
+  Calibration: 0.017055 g/pump-unit
+
+ferm_04:
+  Base Consumption: 739.65 g
+  Avg Rate: 28.89 g/h
+  Calibration: 0.018953 g/pump-unit
+
+ferm_05:
+  Base Consumption: 444.30 g
+  Avg Rate: 18.84 g/h
+  Calibration: 0.019150 g/pump-unit
+
+ferm_06:
+  Base Consumption: 426.46 g
+  Avg Rate: 17.95 g/h
+  Calibration: 0.019529 g/pump-unit
+
+ferm_07:
+  Base Consumption: 460.83 g
+  Avg Rate: 19.72 g/h
+  Calibration: 0.018554 g/pump-unit
+
+================================================================================
+END OF REPORT
+================================================================================
+
+================================================================================
+AMMONIA (NH3) CONSUMPTION
+================================================================================
+
+Base Solution: 6.95 M NH4OH
+Density: 0.947 g/mL
+
+ferm_02:
+  Base solution: 331.76 g (350.3 mL)
+  NH3 consumed: 2.43 mol (41.5 g)
+ferm_03:
+  Base solution: 605.82 g (639.7 mL)
+  NH3 consumed: 4.45 mol (75.7 g)
+ferm_04:
+  Base solution: 739.65 g (781.0 mL)
+  NH3 consumed: 5.43 mol (92.4 g)
+ferm_05:
+  Base solution: 444.30 g (469.2 mL)
+  NH3 consumed: 3.26 mol (55.5 g)
+ferm_06:
+  Base solution: 426.46 g (450.3 mL)
+  NH3 consumed: 3.13 mol (53.3 g)
+ferm_07:
+  Base solution: 460.83 g (486.6 mL)
+  NH3 consumed: 3.38 mol (57.6 g)

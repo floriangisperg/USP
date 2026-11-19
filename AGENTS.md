@@ -11,9 +11,9 @@ CSV) and lab measurements from samples (offline Excel), aligns them, and
 computes derived process parameters (feed, volume, gas-exchange rates,
 carbon balance, yields, induction timing). That is the whole scope —
 **data analysis, not modeling**. The mechanistic-modeling research that
-grew out of this data was deliberately moved out (see
-`../Archive/USP_modeling/`); do not add models, simulators, or fitting
-code here. Python ≥ 3.12.
+grew out of this data is archived in-repo (see `archive/USP_modeling/` —
+code and docs tracked, data/results local-only); do not add models,
+simulators, or fitting code here. Python ≥ 3.12.
 
 ## Documentation map
 

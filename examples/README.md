@@ -61,8 +61,8 @@ Notes per example:
   against the run files) also used by the archived M0 campaign.
 - **hGH**: `prepare_hgh_data.py` shows how the raw SNO exports were merged
   into the per-run `data/` files. The modeling sandbox that used to live
-  under `examples/LDH/modeling_playground/` (the M0 campaign) moved to
-  `../../Archive/USP_modeling/LDH_M0_campaign/` — see that README.
+  under `examples/LDH/modeling_playground/` (the M0 campaign) is archived
+  in-repo at `../../archive/USP_modeling/LDH_M0_campaign/` — see that README.
 - **DOE**: the `induction_time_h` values in the run configs come from an
   operator-vs-SCADA audit (2026-10-23); the audit script and the one-off
   `data_merger.ipynb` live in `../../Archive/USP_artifacts/doe/`.

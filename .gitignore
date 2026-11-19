@@ -49,7 +49,12 @@ coverage.xml
 # Raw data, generated outputs, and plots are kept OUT of git. We ignore by
 # extension (data/output file types) — simpler than scattering path rules across
 # the example dirs — then re-allow the few locations that must be trackable.
-examples/**/data/                 # raw experiment data dirs (also covered below)
+# Raw experiment data dirs and the modeling archive's generated material.
+# (gitignore has no trailing comments — keep the patterns bare.)
+examples/**/data/
+archive/**/data/
+archive/**/results/
+archive/**/outputs/
 
 # Data / output file types — not tracked anywhere by default
 *.csv
@@ -84,6 +89,12 @@ examples/**/data/                 # raw experiment data dirs (also covered below
 # =============================================================================
 **/archive/
 **/*_archived/
+
+# The modeling archive is kept IN the repo on purpose (2026-11-19): code,
+# docs and configs under archive/ are tracked; its data/results/outputs
+# dirs and binary formats stay local via the rules above. Nested archive/
+# and *_archived/ dirs inside it remain ignored.
+!archive/
 **/tmpclaude-*
 .claude/
 

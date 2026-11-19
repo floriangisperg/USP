@@ -50,4 +50,4 @@ were regenerated after this correction. Modeling note: the T35/qs0.4 endpoint ri
 +0.74 g/L (2.454 → 3.195); the T35 group becomes F07 1.744 / F19 3.195 / F12 2.848 —
 a mid-qs hump like T30. Any `M0_aload_qPTexp` fit that predates 2026-09-04 used the old
 values (see the M0 campaign's `HANDOFF.md`, now at
-`../../../../Archive/USP_modeling/LDH_M0_campaign/HANDOFF.md`).
+`../../../archive/USP_modeling/LDH_M0_campaign/HANDOFF.md`).

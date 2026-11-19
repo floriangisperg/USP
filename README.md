@@ -105,8 +105,9 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 
 USP is intentionally scoped to **data analysis**. The modeling work that
 grew out of this data (mechanistic IB model, LDH fits, the M0 model campaign)
-lives outside the repo — see `../Archive/USP_modeling/README.md` and the
-`HybridModel` project.
+is kept as an in-repo archive — see
+[`archive/USP_modeling/`](archive/USP_modeling/README.md); the broader
+modeling framework home is the `HybridModel` project.
 
 Experiment data (`examples/**/data/`, `results/`, `all_data/`) is gitignored
 and lives outside the repo.
