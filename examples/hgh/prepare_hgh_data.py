@@ -47,12 +47,13 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 
-# --- Raw files (kept at the example root as source of truth) ---
-RAW_R6 = HERE / "SNO_hgh_highhigh.csv"
-RAW_R5_BATCH = HERE / "SNO_hgh_lowlow.csv"
-RAW_R5_FEDBATCH = HERE / "SNO_hgh_lowlow_FedBatch.csv"
-ANALYTICS_XLSX = HERE / "20261109_Analytik_highhigh_lowlow.xlsx"
-CALIBRATION_XLSX = HERE / "FeedpumpCalibration.xlsx"
+# --- Raw files (raw campaign inputs live in all_data/, gitignored) ---
+RAW_DIR = HERE / "all_data"
+RAW_R6 = RAW_DIR / "SNO_hgh_highhigh.csv"
+RAW_R5_BATCH = RAW_DIR / "SNO_hgh_lowlow.csv"
+RAW_R5_FEDBATCH = RAW_DIR / "SNO_hgh_lowlow_FedBatch.csv"
+ANALYTICS_XLSX = RAW_DIR / "20261109_Analytik_highhigh_lowlow.xlsx"
+CALIBRATION_XLSX = RAW_DIR / "FeedpumpCalibration.xlsx"
 
 RUN_DIRS = {"R5": HERE / "R5_lowlow", "R6": HERE / "R6_highhigh"}
 
