@@ -6,23 +6,24 @@ Start here for an overview; the user-facing README is [`README.md`](README.md).
 ## Scope
 
 USP (Upstream Processing) is a Python package for analyzing **E. coli
-fermentation data**: it ingests bioreactor sensor exports (online CSV) and
-lab measurements from samples (offline Excel), aligns them, and computes
-derived process parameters (feed, volume, gas-exchange rates, carbon
-balance, yields, induction timing). That is the whole scope — **data
-analysis, not modeling**. The mechanistic-modeling work that grew out of
-this data was deliberately moved out (see `../Archive/USP_modeling/`); do
-not add models, simulators, or fitting code here. Python ≥ 3.12.
+fermentation data**: it ingests bioreactor sensor exports from Eve (online
+CSV) and lab measurements from samples (offline Excel), aligns them, and
+computes derived process parameters (feed, volume, gas-exchange rates,
+carbon balance, yields, induction timing). That is the whole scope —
+**data analysis, not modeling**. The mechanistic-modeling research that
+grew out of this data was deliberately moved out (see
+`../Archive/USP_modeling/`); do not add models, simulators, or fitting
+code here. Python ≥ 3.12.
 
 ## Documentation map
 
-| Document | What it covers |
-|---|---|
-| [`README.md`](README.md) | Install, quickstart, feature overview |
-| [`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md) | **Canonical** campaign/run folder convention — where files go, what git tracks |
-| [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md) | Step-by-step: raw bioreactor export → results (column mapping, parsing, minimal config, sanity checks) |
-| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every configuration option |
-| [`docs/VERIFICATION_STATUS.md`](docs/VERIFICATION_STATUS.md) | How to verify the package (tests, lint, CI) |
+| Document                                                     | What it covers                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| [`README.md`](README.md)                                     | Install, quickstart, feature overview                                                                  |
+| [`docs/DATA_LAYOUT.md`](docs/DATA_LAYOUT.md)                 | **Canonical** campaign/run folder convention — where files go, what git tracks                         |
+| [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md)             | Step-by-step: raw bioreactor export → results (column mapping, parsing, minimal config, sanity checks) |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)             | Every configuration option                                                                             |
+| [`docs/VERIFICATION_STATUS.md`](docs/VERIFICATION_STATUS.md) | How to verify the package (tests, lint, CI)                                                            |
 
 ## Common Development Commands
 
