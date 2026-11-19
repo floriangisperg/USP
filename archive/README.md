@@ -7,6 +7,11 @@ data-analysis scope.
   line: the M0 model-variant campaign (active line, see its `HANDOFF.md`)
   and the dormant modeling playground (fit lineage, symbolic regression,
   IB solubility analysis).
+- [`USP_artifacts/`](USP_artifacts/README.md) — per-example outputs, logs
+  and one-off research removed from `examples/` when it was slimmed down:
+  consolidation outputs, the LDH partition-vs-temperature study, the optfed
+  scratch study, and the DoE provenance (induction audit script +
+  `data_merger.ipynb`).
 
 Git policy: code, docs and configs under `archive/` are **tracked**;
 `data/`, `results/` and `outputs/` dirs and binary formats (figures,

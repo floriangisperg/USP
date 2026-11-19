@@ -1,0 +1,1275 @@
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+Available online 11 October 2024
+2001-0370/© 2024 The Author(s). Published by Elsevier B.V. on behalf of Research Network of Computational and Structural Biotechnology. This is an open access
+article under the CC BY license (http://creativecommons.org/licenses/by/4.0/).
+Contents lists available at ScienceDirect
+Computational and Structural Biotechnology Journal
+journal homepage: www.elsevier.com/locate/csbj
+Research Article
+Optimizing bioprocessing efficiency with OptFed: Dynamic nonlinear
+modeling improves product-to-biomass yield
+Guido Schlögela,
+b
+, Rüdiger Lückc, Stefan Kittlerc, Oliver Spadiutc, Julian Koppc,
+Jürgen Zanghellinia, Mathias Gotsmya,
+d,∗
+a
+Department of Analytical Chemistry, University Vienna, Währinger Straße, 1090 Vienna, Austria
+b
+Doctorate School of Chemistry, University of Vienna, Währinger Straße, 1090 Vienna, Austria
+c
+Integrated Bioprocess Development, Technical University Vienna, Getreidemarkt 9, 1060 Vienna, Austria
+d
+Austrian Centre of Industrial Biotechnology, Krenngasse 37, 8010 Graz, Austria
+A R T I C L E I N F O A B S T R A C T
+Dataset link: https://
+github .com /gschloegel /OptFed/
+Keywords:
+Fed-batch
+Bioproduction
+Non-linear optimization
+Process design
+Biotechnological production of recombinant molecules relies heavily on fed-batch processes. However, as the
+cells’ growth, substrate uptake, and production kinetics are often unclear, the fed-batches are frequently operated
+under sub-optimal conditions. Process design is based on simple feed profiles (e.g., constant or exponential),
+operator experience, and basic statistical tools (e.g., response surface methodology), which are unable to harvest
+the full potential of production.
+To address this challenge, we propose a general modeling framework, OptFed, which utilizes experimental data
+from non-optimal fed-batch processes to predict an optimal one. In detail, we assume that cell-specific rates
+depend on several state variables and their derivatives.
+Using measurements of bioreactor volume, biomass, and product, we fit the kinetic constants of ordinary
+diﬀerential equations. A regression model avoids overfitting by reducing the number of parameters. Thereafter,
+OptFed predicts optimal process conditions by solving an optimal control problem using orthogonal collocation
+and nonlinear programming.
+In a case study, we apply OptFed to a recombinant protein L fed-batch production process. We determine optimal
+controls for feed rate and reactor temperature to maximize the product-to-biomass yield and successfully validate
+our predictions experimentally. Notably, our framework outperforms RSM in both simulation and experiments,
+capturing an optimum previously missed. We improve the experimental product-to-biomass ratio by 19% and
+showcase OptFed’s potential for enhancing process optimization in biotechnology.
+1. Introduction
+Biotechnological production processes are the backbone of numerous
+industries, from pharmaceuticals to biofuels. Many of these processes
+are operated as a fed-batch, adding substrate and nutrients continuously
+when the initial batch medium is depleted [1]. This method allows for
+control of key parameters, such as nutrient concentration, and is funda-
+mental to achieving high yields and product quality. Consequently, the
+optimization of such processes becomes a critical objective.
+Optimizing fed-batch processes is challenging due to the complex-
+ity of cellular mechanisms, which are difficult to measure directly and
+can vary significantly based on factors such as product type, microor-
+ganism, induction mechanism, and product location. As a result, opti-
+* Corresponding author.
+E-mail address: mathias.gotsmy@univie.ac.at (M. Gotsmy).
+mization often involves a trial-and-error approach [2]. In this context,
+theoretical and mathematical modeling oﬀers a powerful and comple-
+mentary alternative. By leveraging simulations and model-based design
+of experiments [3,4], we can reduce our dependence on costly and
+time-consuming trials, and enhance our ability to predict and optimize
+process performance in a more controlled and efficient manner.
+In general, there are two distinct paths for optimizing biotechnologi-
+cal processes: statistical design of experiments, such as response surface
+methodology (RSM) [5], and the model-based approach [3,4,6,7]. Sta-
+tistical methods, including RSM, oﬀer straightforward and accessible
+means of optimization. However, they do not leverage biological knowl-
+edge, which could enhance the optimization process [8], and are limited
+to optimizing a predefined set of discrete variables [9]. In contrast, the
+https://doi.org/10.1016/j.csbj.2024.09.024
+Received 30 July 2024; Received in revised form 27 September 2024; Accepted 29 September 2024
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3652
+G. Schlögel, R. Lück, S. Kittler et al.
+model-based approach begins by understanding the underlying process,
+representing it accurately without relying on mathematical assumptions
+like the quadratic dependencies used in purely statistical methods [10].
+For the model-based approach, empirical models are typically em-
+ployed, often formulated as ordinary diﬀerential equations (ODEs). For
+instance, Monod’s widely used model for population growth [11] is one
+such example. Product creation in these models is often linked to growth
+rate [4,12,13] or feed rate [14]. These models provide a simple yet
+eﬀective means of understanding and predicting bioprocess behavior,
+particularly when dealing with the often limited and noisy data typi-
+cally obtained from bioprocesses.
+However, simplicity comes at a cost. The inherent simplifications
+in these empirical models constrain their applicability, limiting their
+ability to describe complex processes comprehensively. These straight-
+forward models often fail to account for some phenomena observed
+under constant process conditions on a cellular level. This includes pro-
+duction deterioration over time due to metabolic adaptation, or product
+inhibition [15]. Despite their limitations, these models are frequently
+used because formulating more complex models is hindered by sparse
+data, biological variation, and the difficulties in selecting the best avail-
+able model equations [16]. Diﬀerent metrics can be used for model
+selection, e.g., AIC and
+AICC
+[17], LASSO [18], and methods based on
+cross-validation [19,20]. Regardless of the used metric, the number of
+possible models can get very large (e.g., over 218 ≈ 2.6 × 105 possible
+models with 18 parameters) which requires defined search strategies
+(e.g., HIPPO) [21,22].
+Moreover, decisions in the modeling process can introduce biases
+that influence the outcome [23,24], and using more complex models
+with small datasets may lead to overfitting [25].
+The modeling process does not exist in isolation; its primary goal is to
+improve the efficiency of the process (e.g., by maximizing titer/biomass
+or minimizing operational costs). This objective often involves defin-
+ing specific targets for each process, frequently utilizing the TRY metric
+(titer, rate, yield) [26]. The choice of optimization algorithms varies de-
+pending on the complexity of the model at hand, which is influenced by
+the available data set and its quality. While straightforward maximiza-
+tion algorithms suffice for discrete variables [27], optimizing contin-
+uous solutions, such as feed and temperature functions, poses mathe-
+matical challenges, notably due to the theoretically infinite number of
+control variables [28]. To address these challenges, various mathemat-
+ical methods have been developed. For simpler models, Euler-Lagrange
+equation-based approaches can be employed [4]. In contrast, more in-
+tricate models, as encountered in our work, require the application of
+optimal control theory [29].
+The realm of optimal control problems has been extensively ex-
+plored, resulting in a multitude of solution methods [30]. Analytical
+methods, such as those grounded in Pontryagin’s maximum principle
+[29], are well-suited for relatively straightforward problems but may
+not be practical for complex real-life scenarios. In most cases, numeri-
+cal solvers become essential. The two primary categories of solvers are
+direct methods and those based on dynamic programming. Direct meth-
+ods tackle the optimization and diﬀerential equations simultaneously,
+transforming the problem into a set of nonlinear diﬀerential equations
+[31]. In contrast, dynamic programming [32,33] relies on the principle
+of optimality within Hamilton-Jacobi-Bellman frameworks, iteratively
+solving the problem. While dynamic programming holds the promise
+of identifying global optima, it tends to be slower than direct methods
+and is often infeasible for high-dimensional problems. As a result, direct
+methods find more frequent applications, particularly in engineering
+contexts, where a wealth of software packages is available for imple-
+mentation [34–37].
+In this study, we present OptFed, a comprehensive framework us-
+ing an ODE model to describe bioprocesses. The framework is divided
+into three stages: define, fit, and optimize. First, we define a general and
+flexible form of the ODE model. Next, its kinetic parameters are fitted
+to training data and the model size is reduced to avoid overfitting. To
+do this, we developed a heuristic algorithm that starts with the general
+model and removes terms and parameters that do not significantly im-
+prove the fit. In the third stage, based on the reduced model, we leverage
+optimal control theory to identify optimal values for control variables.
+In a case study, we apply OptFed to protein L production to maximize
+the product-to-biomass yield. Optimal values for the temperature and
+substrate feed control are predicted. A comparison to RSM highlights the
+improvements of OptFed to typically used statistical methods. Moreover,
+experimental validation results in a 19% improved product-to-biomass
+yield.
+2. Methods
+2.1. Modeling framework
+Our modeling framework comprises three key components:
+(I) define,
+(II) fit, and
+(III) optimize.
+In the first stage, we establish a general process model capable of rep-
+resenting a wide range of biotechnological (fed-)batch production pro-
+cesses. In the second stage, the general model is fitted to specific process
+data, the kinetic parameters are estimated and insignificant terms are re-
+moved. In the third stage, the fitted process model is used to optimize
+control variables, ultimately maximizing a freely selectable objective
+function. A graphical overview of the modeling framework is given in
+Fig. 1.
+A list of all parameters and their respective symbols and units is given
+in Supplementary Table S1.
+2.1.1. Stage I: define
+We consider the production of recombinant proteins by E. coli in a
+fed-batch process, described by the following standard system of diﬀer-
+ential equations [1]:
+̇
+𝑋 = 𝜇𝑋 −
+𝑓
+𝑉
+𝑋, 𝑋(0) = 𝑋0, (1a)
+̇
+𝑃 = 𝜋𝑋 −
+𝑓
+𝑉
+𝑃, 𝑃 (0) = 0, (1b)
+̇
+𝐺 = −𝛾𝑋 +
+𝑓
+𝑉
+(𝐺f − 𝐺), 𝐺(0) = 0 (1c)
+̇
+𝑉 = 𝑓, 𝑉 (0) = 𝑉0, (1d)
+where 𝐺,
+𝐺f, 𝑃, and 𝑋 represent substrate concentrations in the re-
+actor, substrate concentration in the feed, product, and total biomass,
+respectively, and 𝑉 the current reactor volume. 𝑓, 𝛾, 𝜇, and 𝜋 denote
+the feeding rate, substrate uptake rate per biomass, biomass growth rate,
+and specific product formation rate, respectively.
+As the product is part of the biomass, we additionally define the
+metabolic active residual biomass (given as dry weight)
+𝑋r = 𝑋 − 𝑃. (1e)
+This defines the uptake per active residual biomass (𝛾◦) as
+𝛾◦ = 𝛾𝑋∕𝑋r. (1f)
+To connect the substrate uptake behavior with cellular growth and
+production, we assume that the total uptake can be divided into three
+additive components
+𝛾◦ = 𝛾𝜇 + 𝛾𝜋 + 𝛾𝛼 , (2)
+where 𝛾𝜇, 𝛾𝜋, and 𝛾𝛼 denote the specific substrate uptake support-
+ing growth, product formation, and cellular maintenance, respectively.
+Here, maintenance summarizes all cellular processes not linked to
+growth or production.
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3653
+G. Schlögel, R. Lück, S. Kittler et al.
+Fig. 1. Flow chart for OptFed. In this study, we focus on the stages highlighted in blue. Initially, we set up a general model including diﬀerent inhibition eﬀects
+(define). This model can describe diﬀerent processes and uses many model parameters. In the second stage, the model is simplified to avoid overfitting and parameters
+are estimated (fit). In the third stage, optimal process control variables are predicted (optimize).
+Using biomass-to-substrate yield 𝑌𝑋r
+𝐺
+and product-to-substrate 𝑌𝑃
+𝐺
+, we
+can connect glucose consumption to product formation and growth as
+follows:
+𝜋 = 𝛾𝜋 𝑌𝑃
+𝐺
+𝑋r∕𝑋, and 𝜇 = 𝜋 + 𝛾𝜇 𝑌𝑋 r
+𝐺
+𝑋r∕𝑋. (3)
+The factor 𝑋r∕𝑋 accounts for the fact that only the metabolically active
+residual biomass
+𝑋r
+contributes to additional product formation and
+growth.
+We assume that total substrate uptake as well as substrate uptake
+for product formation follow a non-competitively inhibited Michaelis–
+Menten process [14,38]
+𝛾◦ = 𝛾◦
+max
+(𝑇 )
+𝐺
+𝐾◦ 𝑚
++ 𝐺
+∏
+𝑖∈𝑣𝑎𝑟1
+1
+1+ 𝑖∕𝐾◦
+𝑖
+,
+𝑣𝑎𝑟1 = {𝐺, 𝑛, 𝑃 ∕𝑋, 𝑋}, (4a)
+𝛾𝜋 = 𝛾𝜋
+max
+(𝑇 )
+𝛾◦ − 𝛾𝛼
+𝐾𝜋
+𝑚
++ 𝛾◦ − 𝛾𝛼
+∏
+𝑖∈𝑣𝑎𝑟1
+1
+1+ 𝑖∕𝐾𝜋
+𝑖
+, (4b)
+while substrate demand for maintenance is given by [39]
+𝛾𝛼 = 𝛾𝛼
+min
+(𝑇 )
+∏
+𝑖∈𝑣𝑎𝑟2
+(1 + 𝑖∕𝐾𝛼
+𝑖
+),
+𝑣𝑎𝑟2 = {𝛾◦ ,𝐺,𝑛,𝑃 ∕𝑋, 𝑋}. (4c)
+With these assumptions, 𝛾𝜇 follows according to (2) to
+𝛾𝜇 = 𝛾◦ − 𝛾𝜋 − 𝛾𝛼 . (4d)
+Here, 𝐾◦𝑚
+, and 𝐾𝜋
+𝑚
+are Michaelis-Menten constants, while 𝐾◦
+𝑖
+and 𝐾𝜋
+𝑖
+are
+inhibition constants, and 𝐾𝛼
+𝑖
+are activation constants, 𝑛 is the number of
+generations (𝑛 = log2[𝑋𝑉∕(𝑋0𝑉0)]).
+Finally, the minimum uptake rate
+𝛾𝛼
+min
+, and the maximum uptake rates 𝛾◦
+max
+and 𝛾𝜋
+max
+are assumed to be
+temperature (𝑇) dependent (excluding enzyme denaturation) [40]
+𝛾𝑖 𝑗
+(𝑇 ) = 𝐸𝑖
+0
+𝑘𝐵 𝑇
+ℎ
+exp
+(
+−
+Δ𝐺𝑖
+cat
+𝑅𝑇
+)
+1+exp
+[
+Δ𝐻
+𝑖
+eq
+𝑅
+(
+1
+𝑇
+𝑖
+eq
+−
+1
+𝑇
+)] ,
+𝑖 ∈ {𝜇, 𝜋, ◦},
+𝑗 ∈ {max, min},
+(4e)
+where 𝐸𝑖
+0
+is a (hypothetical) enzyme concentration, Δ𝐺𝑖cat
+, the activa-
+tion energy, 𝑇𝑖
+eq
+is the temperature where half of the enzymes are in
+an active state (the other half is inactivated by the high temperature),
+and Δ𝐻𝑖eq
+determines how abruptly the reaction rate declines with ris-
+ing temperatures. The superscripts ◦, 𝛼, and 𝜋 diﬀerentiate variables
+for substrate uptake, maintenance, and production rate, respectively,
+diﬀerentiating the constants for 𝛾◦, 𝛾𝛼 and 𝛾𝜋. Our model, defined in
+equations (1) and (4), contains 29 free parameters. The substrate yields
+𝑌𝑋r
+𝐺
+, and 𝑌𝑃
+𝐺
+can be derived from genome-scale metabolic models [41],
+while the remaining 27 parameters need to be fitted from training data.
+Bioreactor volume estimation Generally, change in the bioreactor vol-
+ume is aﬀected by five factors, the substrate feed, the base feed (for
+pH control), experimental sampling, the antifoam feed, and gaseous ex-
+changes,
+𝑓 = 𝑓substrate + 𝑓base + 𝑓sampling + 𝑓antifoam + 𝑓gaseous. (5)
+In OptFed, we explicitly model the first three of them. While the sub-
+strate feed is kept variable (for optimization), the base feed is calculated
+as
+𝑓base = 𝑋𝑉 (𝑎𝜇 + 𝑏) (6)
+where the parameters 𝑎 and 𝑏 were fitted to the training data. Addition-
+ally, we accounted for volume change through experimental sampling
+in OptFed. For simplicity, and due to the fact that antifoam, feed, and
+gaseous exchanges (i.e., evaporation,
+O2
+uptake, and
+CO2
+excretion) are
+either minor or antagonistic contributors to volume change, we did not
+consider them in OptFed. More details on volume calculation are given
+in Supplementary Methods S1.1.
+Substrate feed types Although OptFed is not restricted to a certain type
+of substrate feed, it can make sense to enforce them either for compari-
+son to the training data or for simplification of experimental implemen-
+tation. Here we present two feed types that we refer to throughout the
+manuscript.
+An exponential feed is generally very popular as the cells’ internal
+metabolic fluxes are (approximately) constant. It is calculated as
+𝑓substrate(𝑡) = 𝑓0 exp(𝜇𝑓 𝑡) (7a)
+where
+𝜇𝑓 of the unit h−1 is the defining parameter.
+𝑓0
+is usually derived
+from the properties of the process at hand.
+Additionally, we also use a linear feed rate, calculated as
+𝑓substrate(𝑡) = 𝜙1 + 𝜙2𝑡 (7b)
+where
+𝜙1
+and
+𝜙2
+may be varied.
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3654
+G. Schlögel, R. Lück, S. Kittler et al.
+2.1.2. Stage II: fit
+In this step, we use training data to select a model of suitable size
+and fit its kinetic parameters.
+Training data OptFed requires process data for diﬀerent feed rates and
+temperatures. Data from a central composite design [10] commonly
+used for RSM proofed useful (Section 2.4).
+Experimental data interpolation and rate calculation The diﬀerential
+method [42,43] is used to estimate uptake, growth, and production
+rates by fitting the concentration data and diﬀerentiating the fits. We fit
+splines, which are continuous in both their values and first derivatives,
+using SciPy’s UnivariateSpline function [44] onto the experimental
+data points for control and state variables. By inserting these splines into
+equations (1) and (2), we calculate the experimental values for
+̂
+𝛾◦,
+̂ 𝛾𝛼,
+̂ 𝛾𝜋, and
+̂ 𝛾𝜇 (Supplementary Methods S1.1). The hat notation indicates
+that these variables are derived from the experimental training data and
+are used to estimate the unknown parameters in (4).
+Model parameter estimation Model selection is based on a heuristic algo-
+rithm. It is inspired by ANOVA [45] and uses cross-validation [19,20]
+for hyperparameter selection. By approximating uptake, growth, and
+production rates separately, we deal with three smaller models instead
+of one large, simplifying the estimation. Parameter identification is
+performed using diﬀerential evolution [46] with SciPy’s differen-
+tial_evolution function [44], utilizing the previously calculated
+̂
+𝛾◦, ̂ 𝛾𝛼, and
+̂ 𝛾𝜋. Each of the three rates is fitted separately.
+We assume that the eﬀects of each variable in (4) are independent,
+meaning each eﬀect is a separate term in the equation. Each model term,
+containing one influencing variable and one or more parameters, can be
+removed (if they are deemed insignificant) and the model remains valid.
+In case there is no temperature eﬀect, Eqn. (4e) simplifies to
+𝛾𝑖 𝑗
+(𝑇 ) = 𝑐𝛾 𝑖
+𝑗
+𝑖 ∈ {𝜇, 𝜋, ◦}, 𝑗 ∈ {max, min}. (8)
+Each model term of Eqn. (4) is tested. If it does not significantly im-
+prove the model fit, it is removed according to the following algorithm:
+1. Initial Fit: Fit the model with all currently considered parameters
+by minimizing the sum of quadratic errors over all processes and
+measurement points. Calculate the error residuals and total variance
+for the measurement points (Bounds used in the error minimization
+are shown in Supplementary Table S2).
+2. Leave-One-Out Fit: Repeat the fitting process for models, each miss-
+ing one parameter.
+3. F-Test: Use an 𝐹-test to determine if the reduction in variance is
+significant (i.e., 𝑝 < 𝛼) and calculate the diﬀerence in variance with
+and without the parameter.
+4. Remove Insignificant Parameters: Remove the parameter with the
+highest 𝑝-value in the 𝐹-test.
+5. Iterate: Repeat 1 to 4 until only significant terms remain.
+Steps 1-5 are performed separately for each fitted rate (𝛾◦, 𝛾𝛼, and 𝛾𝜋)
+and for 13 levels of 𝛼. The significance level depends on the training
+data (such as the number of processes and measurement points) and is
+computed through cross-validation. The significance level that results in
+the lowest error for the target variable (𝑃
+𝑋
+) is selected (Supplemental
+Methods S1.2).
+As for each iteration of our algorithm (Step 5), a term is removed
+from the model equation, the maximum amount of iterations is defined
+by the maximum amount of removable terms per rate equation plus one
+(i.e., seven).
+To compare our heuristic approach to model selection with the cor-
+rected Akaike information criterion (AICC) [17], we fit all possible pa-
+rameter combinations for 𝛾◦, 𝛾𝛼, and 𝛾𝜋. Next, we calculate the
+AICC
+[Eqn. (14)] for each of the resulting models and selected the one with
+the lowest value.
+2.1.3. Stage III: optimize
+To optimize
+max
+𝑓(𝑡),𝐺f ,𝑇 (𝑡),𝑡end
+𝑃
+𝑋
+=
+𝑃 (𝑡end)
+𝑋(𝑡end)
+(9a)
+s. t. Eqn. (1) (9b)
+𝑉 ≤
+𝑉max = 2.5 L (9c)
+𝑡end
+≤
+𝑡max = 12 h (9d)
+we use ipopt 3.14.10 [47], which is a general nonlinear programming
+solver. For discretization and numerical diﬀerentiation [Eqn. (1)], we
+implemented an orthogonal collocation and optimization algorithm in
+casadi 3.3.5 [34] using Python. All required code to reproduce our
+analysis is available at https://github .com /gschloegel /OptFed.
+To solve the diﬀerential equations in (1), we first scale the time co-
+ordinate by setting 𝑡 = 𝑡end𝜏,
+using the process’ time
+𝑡end
+as a control
+variable. We then apply orthogonal collocation on 100 finite elements
+[48]. Specifically, we use Gauss–Legendre polynomials of degree one
+with collocation points at 0.5. For the substrate, due to system stiﬀness,
+we use Gauss–Radau collocation points at 1. Locally, we solve the dif-
+ferential equation using the backward Euler method. The controls (feed
+and temperature) are linear on each of the 100 intervals, allowing the
+optimization method to find optima with temperature gradients and un-
+conventional feeding strategies.
+To avoid rapid variations in the control variables 𝑢 = (𝑓, 𝐺f, 𝑇, 𝑡end),
+specifically in the feed and temperature profile 𝑓(𝑡end𝜏),
+and 𝑇(𝑡end𝜏),
+we add a regularization term to the objective function in (9a). This mod-
+ified objective reads
+max
+𝑓(𝑡),𝐺f ,𝑇 (𝑡),𝑡end
+𝑃
+𝑋
+=
+𝑃 (𝑡end)
+𝑋(𝑡end)
+−
+length(𝑢)
+∑
+𝑖=1
+𝑐𝑖
+ℎ
+∑
+𝑗∈
+[
+𝑢𝑖(𝑗)− 𝑢𝑖(𝑗 +1)
+𝑢𝑖(𝑗)+ 𝑢𝑖(𝑗 +1)
+]2
+, (10)
+where
+𝑐𝑖 is the penalty factor for each control variable
+𝑢𝑖, ℎ is the length
+of the finite elements, and  is the set of all sampling times.
+In addition to the general optimization problem in (9), we defined a
+simplified version where all substrate is immediately used and no sub-
+strate accumulates, i.e.,
+̇
+𝐺 = 0 = −𝛾◦𝑋 +
+𝑓
+𝑉
+(𝐺f − 𝐺). This mirrors the
+standard assumption in fed-batch processes and computationally avoids
+issues posed by stiﬀ diﬀerential equations.
+2.2. Response surface methodology
+To benchmark OptFed, we evaluate its performance against response
+surface methodology (RSM) in process optimization. We calculated RSM
+using the rsm package [49] for R [50].
+RSM requires that the control variables remain constant throughout
+the process and uses the process target metric (such as production con-
+centration, yield, or productivity) to fit the model. Thus the RSM model
+is represented as:
+𝑃
+𝑋
+= 𝑐 + 𝑐𝑓 𝜇𝑓 + 𝑐𝑇 𝑇 + 𝑐𝑓𝑇 𝜇𝑓 𝑇 +
+𝑐𝑓2𝜇2 𝑓
++
+𝑐𝑇2𝑇2
+(11)
+where 𝑐, 𝑐𝑓,
+𝑐𝑇 ,
+𝑐𝑓𝑇,
+𝑐𝑓2,
+and
+𝑐𝑇2
+are fitted from the data minimizing
+the sum of quadratic errors.
+𝜇𝑓 is the growth rate of the exponential
+feed (in 𝑓 = 𝑓0 exp(𝜇𝑓𝑡)). The same model is calculated with the target
+variables 𝑃 and 𝑋.
+2.3. Model comparison and validation
+To evaluate model fit [Eqn. (1)], individual (state) variables (e.g. 𝑃,
+𝑃∕𝑋, 𝑋) or specific rates (e.g., 𝛾◦, 𝛾𝛼, and 𝛾𝜋), we use the coefficient
+of determination 𝑅2 and its adjusted version 𝑅2
+adj
+, which are defined as:
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3655
+G. Schlögel, R. Lück, S. Kittler et al.
+𝑅2 = 1 −
+RSS
+TSS
+𝑅2
+adj
+= 1 −
+RSS∕𝑑𝑓res
+TSS∕𝑑𝑓tot
+(12a)
+with the residual and total sum of squares (RSS and TSS)
+RSS =
+∑
+𝑝∈
+∑
+𝑚∈
+(
+𝑥𝑝(𝑚)− ̂
+𝑥𝑝(𝑚)
+)2
+, TSS =
+∑
+𝑝∈
+∑
+𝑚∈
+(
+𝑥𝑝(𝑚)−
+⟨
+̂ 𝑥
+⟩)2
+,
+(12b)
+respectively. Here,
+𝑥𝑝(𝑚) and ̂
+𝑥𝑝(𝑚) represent the predicted and mea-
+sured values respectively,
+⟨
+̂ 𝑥
+⟩
+represents the average of the observed
+values,  is the set of all processes, and  is the set of all sampling
+times.
+𝑑𝑓res
+and
+𝑑𝑓tot
+are the residual and total degrees of freedom,
+given by
+𝑑𝑓res = #𝑝 − #𝑣 − 1 and
+𝑑𝑓tot = #𝑝 − 1, respectively, where
+#𝑝 = || + || represents the number of points and #𝑣 represents the
+number of variables.
+Finally, we measure relative errors with respect to the mean of all
+data points:
+𝑥err =
+̂ 𝑥 − 𝑥
+⟨
+̂ 𝑥
+⟩ ,
+⟨
+̂ 𝑥
+⟩
+=
+1
+|| ⋅ ||
+∑
+𝑝∈
+∑
+𝑚∈
+̂ 𝑥. (13)
+Diﬀerent models are compared using 𝑅2 and 𝑅2
+adj
+on the state vari-
+ables, focusing on 𝑃∕𝑋. In addition, we perform cross-validation using
+the leave-one-out strategy (predicting one process using all other pro-
+cesses) and compare 𝑅2 for this as well. As an alternative metric for the
+goodness of the model, we calculate the corrected Akaike information
+criterion
+AICC
+[17]
+AICC = #𝑝
+(
+log
+(
+RSS
+#𝑣
+)
++1
+)
++2 #𝑣 +
+#𝑣(1 + #𝑣)
+#𝑝 −#𝑣 −3
+. (14)
+RSM only predicts end points of processes with constant exponential
+feed rates (𝜇𝑓) and constant temperatures (𝑇). To ensure a fair compar-
+ison, here, we restricted OptFed to the same constraints.
+In addition, we validate the OptFed framework by applying it to a
+case study and experimentally test the predicted optimal controls.
+2.4. Case study
+We illustrate our modeling framework by optimizing protein L pro-
+duction in a fed-batch fermentation of E. coli, and evaluate its eﬀective-
+ness in comparison to RSM [49] in central composite design [10]. Data
+from twelve fermentations with varying specific substrate feed and tem-
+perature [51] are used as training input for both methods to predict an
+optimal bioprocess that maximizes the specific process yield 𝑃
+𝑋
+.
+The dataset represents nine conditions (Fig. 2a):
+• one center point (four runs),
+• four star points (single runs) where either feeding rate or tempera-
+ture varied from the center point,
+• four factorial points (single runs) where both variables deviated
+from the center point.
+Training data Process data (biomass concentration, protein L concen-
+tration, and substrate concentration over time) from 12 fed-batch fer-
+mentations of E. coli strain BL21 DE3, with varying specific substrate
+feed and temperature [51], are used to fit the general process model.
+In short, protein L accumulated intracellularly, and glycerol was the
+sole carbon source. IPTG (isopropyl 𝛽-D-1-thiogalactopyranoside) was
+used to induce the product promoter during the feed phase. The biomass
+concentration at induction varied between 20 gL−1 to 45 gL−1. The con-
+trol variables were the exponential feed rate coefficient (𝜇𝑓) and the
+temperature (𝑇). Each process had a production phase of 12 h. Biomass
+and product concentrations were measured every 2 h, while tempera-
+ture and feed rate were measured online. Due to the small reactor size,
+each sampling reduced the reactor volume non-negligibly, which was
+considered in the analysis. Details about the experimental setup and an-
+alytical methods are described in Section 2.4.1.
+2.4.1. Experimental procedures
+Experimental data for model fitting and validation in OptFed was
+obtained from 15 bioreactor cultivations. The cultivations were carried
+out in two bioreactor systems having a similar working volume. The
+12 initial cultivations were executed in a DASGIP© Parallel Bioreactor
+System (max. working volume 2 L; Eppendorf, Hamburg, Germany) as
+described in [51]. In contrast to the original paper, where 11 out of
+12 performed processes were used, according to the DoE, we use all 12
+processes as training data. In addition, three validation runs were per-
+formed in a Minifors 2 bioreactor system (max. working volume 2.5 L;
+Infors HT, Bottmingen, Switzerland). For all cultivations a defined min-
+imal medium according to DeLisa [52] was used, supplemented with an
+initial concentration of 20 gL−1 glycerol as the main carbon source and
+0.02 gL−1 kanamycin as a selection marker. The temperature was set to
+37°C during batch phase, 35°C during fed-batch phase and controlled
+at defined levels during induced fed-batch phase in accordance with the
+experimental plan. The pH was monitored with an EasyFerm pH elec-
+trode (Hamilton, Reno, NV, USA) and kept constant at 6.7 via addition
+of 12.5%
+NH4OH. A probe for monitoring dissolved oxygen (dO2) was
+installed (Visiferm DO425, Hamilton, Reno, NV, USA). The dissolved
+oxygen in the cell broth was kept over 40% through continuous stir-
+ring (1400 rpm) and aeration of 2 vvm. If needed, pure oxygen was
+added to the air flow. Furthermore, the oﬀ-gas was analyzed with re-
+spect to
+O2
+and
+CO2
+concentrations via a Bluevary sensor (BlueSens Gas
+analytics, Herten, Germany) for real-time monitoring of the metabolic
+activity of the cells. The process parameters were logged and controlled
+using the bioprocess management system eve© (Infors HT, Bottmingen,
+Switzerland). The expression of recombinant protein L was induced by
+a one-point addition of sterile Isopropyl 𝛽-D-1-thiogalactopyranoside
+(IPTG) to a final concentration of 0.5 mM. After addition of the inducer,
+samples were taken every two hours for further process and product
+analytics.
+An E. coli BL21 (DE3) strain transformed with a pET-24a(+) plasmid
+was used for the cultivations (GenBank accession no. AAA67503). The
+plasmid carries the codon-optimized genes coding the 5B (binding) pro-
+tein L with a C-terminal
+His6-tag. The recombinant protein L is expressed
+intracellularly. The cells were harvested and subsequent analytics were
+done. All subsequent analytical steps were realised with samples of 35
+mL cell broth each. The cell broth was centrifuged (10 min, 21 000
+rpm, 4°C) and the supernatant was separated from the cell pellet and
+aliquoted (1 mL) for anion exchange chromatography. Biomass concen-
+tration was quantified by dry cell weight (DCW) in triplicates. Therefore,
+the cell pellet was washed with saline (0.9 wt.% NaCl), centrifuged with
+the same settings and dried at 105°C for 48 h. In addition, the biomass
+concentration was determined via optical density measurements at 600
+nm wavelength (OD600) in triplicates. Residual glycerol and metabo-
+lites in the cell-free supernatant were analyzed by a high performance
+liquid chromatography (HPLC) system (UltiMate 3000; Thermo Fisher,
+Waltham, MA) equipped with an Aminex HPX-87 H column (Bio-Rad
+Laboratories, Hercules, CA, USA). HPLC standards with various concen-
+trations of protein L (0.063-1.0 gL−1), glycerol (0.781-50 gL−1) and
+acetate (1-10 gL−1) were prepared separately. A sample volume of 10
+mL cell broth was centrifuged (15 min, 14 000 rpm, 4 °C) and the sepa-
+rated cell pellet was re-suspended in 40 mL lysis buﬀer (10 mM EDTA,
+100 mM Tris, pH 7.4) and homogenized subsequently (7 passages, 1200
+bar; PandaPLUS, Gea AG, Germany). After centrifugation of the crude
+cell lysate (20 min, 14 000 rpm, 4°C), the supernatant was analyzed us-
+ing a reversed-phase HPLC method for protein L quantification based on
+a PpL standard calibration curve. The UltiMate 3000 HPLC system was
+equipped with a BioResolve reversed-phase Polyphenyl column (Waters
+Corporation, MA, USA). Further information about the analytical pro-
+cedures can be found in [51].
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3656
+G. Schlögel, R. Lück, S. Kittler et al.
+Fig. 2. Estimation of final product titer and model errors (a) predicted specific yield in OptFed (top) versus RSM (bottom). Both models are constructed using
+data from twelve fermentations, including a center point (circle, four replicates), four factorial points (triangles), and four star points (stars; each single runs). The
+predicted specific product yields 𝑃
+𝑋
+at the end of the process are shown in shades of gray, with the black cross indicating the optima. Both optima are calculated
+for exponential feed rates at constant temperature throughout the production phase. Model errors, indicating diﬀerences between predicted and measured 𝑃
+𝑋
+, are
+indicated by the color of the markers: red for overestimation, white for accurate prediction, and blue for underestimation. (b) Goodness of fit [𝑅2(fit), and adjusted
+𝑅2(fit)] as well as goodness of fit for leave-one-out cross-validation (CV) [as measured by CV-𝑅2(cross validation)]. Values in brackets refer to the RSM model, values
+in standard print to OptFed.
+3. Results
+We illustrate our modeling framework by optimizing protein L pro-
+duction in a fed-batch fermentation of E. coli, and evaluate its eﬀective-
+ness in comparison to RSM [49] in central composite design [10]. Data
+from twelve fermentations with varying specific substrate feed and tem-
+perature [51] are used as input for both methods to predict an optimal
+bioprocess that maximizes the specific process yield 𝑃
+𝑋
+(product per
+biomass ratio at the end of the process).
+3.1. Response surface methodology predicts limited optimization potential
+RSM utilizes a second-degree polynomial model to forecast the spe-
+cific yield 𝑃
+𝑋
+as a function of the specific feeding rate and temperature
+(Equation (11)). It predicts an optimal specific yield of 0.16 gg−1 near
+the center point at
+𝜇𝑓 = 0.12 h−1 and 𝑇 = 31◦C (Fig.2a). However,
+the predicted yield improvement is small (+1%) yet uncertain (adjusted
+𝑅2 = 0.19; Fig. 2b), and none of the model’s parameters are statistically
+significant (at a 0.95 confidence level, Supplementary Table S3).
+3.2. OptFed identifies significant optimization potential at high temperature
+3.2.1. Model simplification and parameter estimation
+Initially, we mitigate measurement errors of the state variables by
+fitting them with cubic splines (Supplementary Figure S1). Based on
+these splines, we parameterize our general model using the algorithm
+described in the Methods Section 2.1.2. We found that only 12 out of 27
+parameters of the general process model are statistically significant and
+required (𝛼 = 0.2, Supplementary Figure S2), with only a minor drop
+in the explained variance (see Tables 1 and 2). The diﬀerence of 𝑅2
+and adjusted 𝑅2 is higher for the full model as the degrees of freedom
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3657
+G. Schlögel, R. Lück, S. Kittler et al.
+Table 1
+List of parameters remaining in the selected model and their fitted values. The increased RSS (residual
+sum of squares) column next to a parameter shows the increase in fitting error (calculated with Equa-
+tion (12)) if this parameter would be removed from the reduced model. 𝐾◦𝑚
+is not removed, as removal
+leads to physically impossible negative substrate concentrations. A comprehensive list of all parameters
+of the initially designed model is found in Supplementary Table S1).
+Name Unit Value increased RSS
+Parameters (fitted using training data)
+𝑐𝛾◦ max
+maximal uptake rate g g−1 h−1 0.49
+𝑐𝛾𝛼
+min
+maintenance requirement without growth g g−1 h−1 2.4×10−5
+𝐸𝜋
+0
+hypothetical enzyme concentration 8.8×10−9
+𝐾◦ 𝑚
+dependence on substrate concentration g 1.0×10−3
+𝐾𝛼
+𝑔
+growth dependent maintenance g g−1 h−1 1.0×10−4 142%
+𝐾𝜋
+𝑚
+production dependence on available substrate g g−1 h−1 0.62 188%
+𝐾◦ 𝐺
+substrate inhibition g L−1 89 119%
+𝐾𝛼
+𝑃
+increase caused by product g L−1 0.11 37%
+𝐾𝜋
+𝑛
+inhibition for higher no. of generations 1.5 50%
+Δ𝐺𝜋
+cat
+catalytic activation energy J mol−1 5.2×104 ⎫
+⎪
+⎬
+⎪
+⎭
+38%
+Δ𝐻𝜋
+eq
+enthalpic (conversion of active to inactive enzyme) J mol−1 4.8×106
+𝑇𝜋
+eq
+temperature where half the enzyme is active K 310
+𝐸𝜋
+0
+hypothetical enzyme concentration K 8.8×10−9
+Constants (from literature)
+𝑌𝑋 r
+𝐺
+biomass yield per substrate g g−1 0.627
+𝑌𝑃
+𝐺
+product yield per substrate g g−1 0.652
+𝑘𝐵 Boltzmann constant J K−1 1.38 × 10−23
+𝑅 Gas constant J mol−1 K−1 8.314
+ℎ Plank constant J h 2.39 × 10−30
+Table 2
+Overview of the goodness of fit of the kinetic functions. The
+values of the parameters of the reduced OptFed are given in Ta-
+ble 1.
+reduced OptFed full OptFed
+𝛾◦ 𝛾𝛼 𝛾𝜋 𝛾◦ 𝛾𝛼 𝛾𝜋
+𝑅2 0.54 0.68 0.70 0.58 0.74 0.73
+adjusted 𝑅2 0.52 0.67 0.68 0.24 0.71 0.70
+# of parameters 3 3 6 9 9 9
+are higher. The eﬀect is especially pronounced for 𝛾◦ as only 3 out of
+12 processes are used for estimation (for other processes the substrate
+concentration is below the limit of quantification). Further reducing the
+model would increase the fitting error by at least one-third (Supplemen-
+tary Figure S3). Thus, with the parameter values listed in Table 1, the
+reduced model reads:
+𝛾◦ = 𝑐𝛾◦ max
+𝐺
+𝐾◦ 𝑚
++ 𝐺
+𝐾◦
+𝐺
+𝐾◦
+𝐺
++ 𝐺
+(15a)
+𝛾𝛼 = 𝑐𝛾 𝛼
+min
+(1 + 𝛾◦ 𝐾𝛼
+𝑔
+) (1 + 𝑃 ∕𝑋 𝐾𝛼
+𝑃
+) (15b)
+𝛾𝜋 = 𝛾𝜋
+max
+(𝑇 )
+𝛾◦ − 𝛾𝛼
+𝐾𝜋
+𝑚
++ 𝛾◦ − 𝛾𝛼
+1
+1+ 𝑛 𝐾𝜋
+𝑛
+(15c)
+𝛾𝜇 = 𝛾◦ − 𝛾𝜋 − 𝛾𝛼 (15d)
+with
+𝛾𝜋
+max
+(𝑇 ) = 𝐸𝜋
+0
+𝑘𝐵 𝑇
+ℎ
+exp
+(
+−
+Δ𝐺𝜋
+cat
+𝑅𝑇
+)
+1+exp
+(
+Δ𝐻
+𝜋
+eq
+𝑅
+(
+𝑇𝜋
+eq
+−1
+− 𝑇−1
+)) . (15e)
+In the reduced OptFed process model (15), the substrate uptake rate
+𝛾◦ follows Michaelis-Menten kinetics with self-inhibition by the sub-
+strate. The substrate-to-maintenance flux 𝛾𝛼 increases multilinearly with
+the substrate uptake rate 𝛾◦, and the product-to-biomass yield 𝑃∕𝑋.
+While both fluxes are temperature-independent, the product formation
+rate 𝜋 is modeled as a temperature-dependent Michaelis-Menten-like
+kinetic with non-competitive inhibition by the number of generations 𝑛
+after induction. Supplementary Figure S3 illustrates the quality of our
+model’s fit on rates. Despite some noise and occasional large errors in
+individual data points, the overall trend is well-predicted.
+We compare the measurement data for product and biomass with the
+model predictions and validate these predictions using cross-validation.
+The adjusted 𝑅2 values remain above 0.52 for 𝑃, 𝑃∕𝑋, and 𝑋, both with
+and without cross-validation (Fig. 2b and Supplementary Figures S4 and
+S5). Thus, we conclude that the model is a reliable choice, especially
+compared to RSM.
+Additionally, we compare our heuristic model selection algorithm
+(Section 2.1.2) with model selection based on the
+AICC. The selected
+kinetic parameters are almost identical for both methods, only
+AICC
+in-
+cludes terms for 𝐺 in 𝛾𝛼 and 𝛾𝜋. With our heuristic algorithm, these
+variables were removed in the last step of our elimination as they do not
+improve the model fit significantly (𝑝-values of 0.25 and 0.30). While
+optimal feed rates are diﬀerent (about ±22%), temperature optimum is
+similar (±0.03◦C). Using the model optimum for one model and testing
+it with the other misses the optimal 𝑃
+𝑋
+by less than 0.6%.
+3.2.2. Process model optimization
+Using the model develop above, we apply the optimization algorithm
+described in Methods Section 2.1.3 to determine the optimal feeding
+strategy and temperature settings. Additionally, we consider the follow-
+ing constraints:
+• The initial biomass matches the mean value of the center point runs
+of the experimental data,
+𝑋0 = 30gL−1.
+• The initial bioreactor volume is set at 1.3 L, with no maximum vol-
+ume constraint.
+• The feed glycerol concentration is fixed at 390 gL−1.
+• Sampling of 35 mL reduces the current reactor volume at 𝑡 =
+2, 4, 6, 8, and 10 h.
+• A linear regression model (Supplementary Figure S6) approximates
+the base addition as
+𝑓base = 𝑋𝑉 ×10−7 × (13 900𝜇 −1.1 h
+−1
+).
+Fig. 3 illustrates the predicted optimal fed-batch process for protein
+L production. At 35.8◦C and after 12 h, we predict a biomass concen-
+tration of 52 gL−1 and a product concentration of 9.6 gL−1, resulting in
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3658
+G. Schlögel, R. Lück, S. Kittler et al.
+Fig. 3. Predicted optimal process with OptFed. The red dashed-dotted lines represent OptFed’s prediction for the reference process, while grey lines show the
+predicted optimal behavior at 𝑇 = 35.8C. Black dashed lines indicate the optimal process with approximated linear feed rate. The simplification of the feed profile
+has a negligible impact on the process (grey full and black dashed lines). After 12 h, a 37.4% improvement in specific product yield is predicted. For reference,
+measurements from the training data are shown (red circles, center point, same initial biomass).
+an optimal product yield of 0.19 gg−1. This represents a 37.1% increase
+compared to the reference process.
+Increasing the temperature is key for optimized performance (Fig. 3).
+According to the model, maximum production rate 𝛾𝜋
+max
+increases with
+temperature up to the optimal temperature of 35.8◦C and decreases
+sharply for higher temperatures (Supplementary Figure S3). Optimiz-
+ing the feed but keeping the temperature at 31◦C increases the specific
+product yield by just 0.3%. Conversely, keeping the feed constant and
+raising only the temperature boosts the maximally obtainable specific
+product yield by 37.0%. A summary of optimization results can be found
+in Supplementary Table S4.
+Fig. 2a compares the predictions of RSM and OptFed. Under iden-
+tical process constraints (constant exponential feed rate and constant
+temperature), OptFed identifies an optimum at elevated temperatures
+that RSM misses.
+Unlike the training data’s fermentations, which used an exponential
+feed, we find that an almost linearly increasing feed rate is best to max-
+imize the product-to-biomass yield (Fig. 3D). Therefore, we decided to
+approximate the predicted optimal feed function with a simple linear
+equation (Supplementary Figure S6)
+𝑓opt = 0.022 gh−1 +0.0053 gh−2 𝑡. (16)
+This adjustment changes the final product and biomass concentrations
+and the product-to-biomass yield 𝑃
+𝑋
+by less than 0.1%, but significantly
+eases practical implementation (Fig. 4). Generally, variations of the feed
+function have little influence as long as the initial and final biomass
+concentrations remain constant.
+Our model’s predictions are validated by experimentally running the
+optimal fermentation process with the simplified linear feed (Fig. 4).
+Additionally, an intermediate process at 33.5◦C (halfway between the
+temperature of the center point and the optimum) is carried out.
+For the first 6.5 h, the processes closely matched the predictions
+(Fig. 4). The optimal process at 36◦C achieved a 19% increase in spe-
+cific product yield (compared to the predicted 21%), while the process at
+33.5◦C achieved a 5% increase (compared to the predicted 18%). Data
+points beyond 6.5 h are aﬀected by unstable temperatures and therefore
+not considered.
+4. Discussion
+Recent years have seen a surge in research on biotechnological pro-
+cess parameterization and optimization strategies [21,53–55]. However,
+studies usually focus on one of the two aspects. Here, we developed a
+comprehensive modeling framework, OptFed, to strategically combine
+them.
+OptFed employs a general phenomenological process model fitted
+with experimental time series data from multiple fermentations. The al-
+gorithm discards parameters with insufficient statistical power to mini-
+mize overfitting, simplify the model, and increase the model’s reliability.
+Using this parameterized model, we applied nonlinear optimization to
+predict a fermentation profile for optimal specific protein L yield in E.
+coli, resulting in a near-linear feed at an elevated temperature of 35.8◦C.
+This approach predicted a 37% increase in specific product yield com-
+pared to the training data, significantly outperforming the standard
+RSM, which only predicted a 1% improvement. However, during the
+experimental validation of the optimized process, we encountered is-
+sues with temperature stability shortly after 6.5 h and decided not to
+use data collected thereafter. This instability is due to an undersized
+cooling capacity of the bioreactor.
+Despite this, at 6.5 h the specific protein yield was up by 19%, close
+to the predicted 21% at that time. The primary increase in specific prod-
+uct yield is attributed to the elevated temperature, accounting for over
+99% of the improvement. According to OptFed, product concentration
+increases approximately linearly with temperature up to the optimum.
+This dependence is completely missed by RSM, highlighting the advan-
+tage of our approach.
+Compared to RSM, our process equations constrain the possible so-
+lution space to more realistic outcomes. In fact, combining mechanistic
+modeling with purely statistical approaches has already previously been
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3659
+G. Schlögel, R. Lück, S. Kittler et al.
+Fig. 4. Validation of the predicted optimal fermentation. Panels A to C compare experimental data (circles) with model predictions (lines). Corresponding feed
+rates, substrate uptake rates, growth rates, and product formation rates are illustrated in Supplementary Figure S9. Panel D shows the temperature profile of the
+fermentations. For 𝑡 > 6.5 h temperatures are unstable and the data is not considered. (opaque region in panels A to D). A comparison of optimal predicted and
+experimentally achieved controls is given in Supplementary Figure S7.
+shown to perform better than pure RSM [54]. For example, RSM may
+predict negative values of the target metric (Fig. 2), an eﬀect that cannot
+be observed with OptFed. Moreover, our process equations implicitly
+ensure mass balance due to the calculation of the substrate-to-growth
+rate (𝛾𝜇) from the diﬀerence of substrate uptake and the other substrate
+draining fluxes (Equation (2)).
+Maintenance flux, as we use it throughout the manuscript, is de-
+fined as a catchall-term for several metabolic eﬀects. It comprises (1) the
+(non-)growth associated maintenance [56], (2) all non-optimal growth
+and production due to byproduct formation [57], and (3) any overflow
+metabolism during high substrate uptake rates [58]. Consequently, our
+yields are derived from a metabolomic model, excluding maintenance
+requirements, which diﬀers from experimental yields where mainte-
+nance is included. Maintenance accounts for more than half of the up-
+take at the end of production (Supplementary Figure S8), leading to
+seemingly higher-than-usual yields (𝑌𝑋r
+𝐺
+, 𝑌𝑃
+𝐺
+) in Table 1.
+Furthermore, we estimate uptake rates during production based on
+experimental data. As uptake can be significantly reduced during pro-
+duction [59] this avoids possible overfeeding in the predicted optimum.
+In the case study, we observe a reduced uptake rate, but uptake is not a
+limiting factor for optimization.
+The mathematical problems in our procedure, such as model identi-
+fication and calibration, are difficult to solve because models often have
+too many interrelated parameters and lack sufficient high-quality train-
+ing data. This can cause optimization algorithms to be unstable and not
+converge, presenting significant challenges [60]. Our model, for exam-
+ple, requires high-quality time course data. Random (relative) errors
+for biomass and product concentrations should be in the range of 3%
+and 15%, respectively, to reliably identify the correct optimum (Sup-
+plementary Figure S10). However, these experimental uncertainties are
+manageable with current process monitoring technology [61].
+Compared to the center point of the training data, almost all of the
+improvement in our case study originates from the increase in tempera-
+ture. However, due to diﬀerent product formation kinetics, this may be
+diﬀerent for other products. Therefore, we cannot derive a general rule
+which feed profiles and temperatures are more advantageous in other
+setups. For example, [62] find a high influence of the feeding strategy
+on the production of inclusion bodies. This is most likely to a diﬀerence
+in product and process setup.
+In Section 2.1.3, we optimize for the product-to-biomass yield (𝑃
+𝑋
+),
+a rather unconventional metric, compared to the titer, productivity, and
+(product-to-substrate) yield commonly used [63]. However, in this case
+study, the maximization of 𝑃
+𝑋
+is of critical importance for the ease of
+downstream processing. This strategy bears the risk of converging to a
+process that yields excellent 𝑃
+𝑋
+but very low amounts of product over-
+all, which is also unfavorable. Here, we mitigated the risk by comparing
+our optimal 𝑃
+𝑋
+process to an optimal 𝑃𝑉 process (Supplementary Fig-
+ure S11). Volume can be easily scaled by scaling batch volume and feed
+rate. The reachable biomass concentration depends on the reactor de-
+sign (cooling capabilities, oxygen supply). A biomass limit of 60 gL−1
+(reached in training processes) could increase the product by 16%.
+Computational and Structural Biotechnology Journal 23 (2024) 3651–3661
+3660
+G. Schlögel, R. Lück, S. Kittler et al.
+While our optimum is stable for changes in feeding strategy, we see
+a sharp drop in productivity when the temperature is raised above the
+optimum. This means, the optimal temperature is a good first guess, but
+more data is required when we move from screening to the design of
+the production setup. Based on the existing data, we applied a Monte
+Carlo estimation [64–66] (Supplementary Figure S12). We observe that
+we can guarantee (at a significance level of 0.05) a production rate
+within 10% of the optimum by reducing the temperature from 35.8◦C
+to 34.9◦C.
+OptFed focuses on the model selection. Based on this further im-
+provements are possible. Sensitivity analyses [67] could help to make
+the optimum more stable considering the uncertainties in parameter fit-
+ting. We also limit ourselves by using existing data. Model-based design
+of experiment [68] could provide better training data or can be used to
+plan additional experiments to improve the model.
+5. Conclusion
+In this study, we presented OptFed, a phenomenological model-
+based bioprocess optimization framework that (also) allows us to seam-
+lessly integrate preexisting biological and process knowledge. Unlike
+other tools, we emphasized the parameterization of process equations
+using experimental bioprocess data. To prevent overfitting, OptFed em-
+ploys a multi-step fitting strategy that retains only the terms that signif-
+icantly reduce model error, discarding others.
+This approach addresses key challenges in industrial process design
+by eliminating the reliance on trial-and-error methods and standard,
+predefined feeding strategies. We demonstrated that OptFed not only
+accurately describes the training data but also predicts optimized pro-
+cess controls. Experimental validation shows a 19% increase in specific
+protein L yield compared to the control.
+While eﬀective, OptFed’s performance depends on the quality of the
+training data. Future work will explore expanding the model to ad-
+dress more complex biological phenomena, incorporate multi-objective
+optimization, and validate its application across a broader range of bio-
+processes and products.
+We are confident that OptFed is a valuable tool for bioprocess opti-
+mization and will benefit the industry in the future.
+CRediT authorship contribution statement
+Guido Schlögel: Writing – review & editing, Writing – original draft,
+Visualization, Software, Methodology, Investigation, Conceptualization.
+Rüdiger Lück: Writing – review & editing, Investigation. Stefan Kittler:
+Writing – review & editing, Investigation. Oliver Spadiut: Writing –
+review & editing, Funding acquisition. Julian Kopp: Writing – review &
+editing, Investigation. Jürgen Zanghellini: Writing – review & editing,
+Writing – original draft, Supervision, Methodology, Conceptualization.
+Mathias Gotsmy: Writing – review & editing, Writing – original draft,
+Supervision, Methodology, Conceptualization.
+Declaration of competing interest
+The authors declare that they have no competing interests.
+Acknowledgements
+The authors thank the European Union’s Horizon Europe Research
+and Innovation Programme for their funding facilitating this study
+through the Enviromed project (Grant agreement No. 101057844).
+Appendix A. Supplementary material
+Supplementary material related to this article can be found online at
+https://doi .org /10 .1016 /j .csbj .2024 .09 .024.
+Data availability
+All code required to reproduce our analysis, as well as all training and
+validation data, is available at https://github .com /gschloegel /OptFed/.
+References
+[1] Lim Henry C, Shin Hwa Sung. Fed-batch cultures: principles and applications of
+semi-batch bioreactors. Cambridge University Press; 2013.
+[2] Rodrigues Maria Isabel, Iemma Antonio Francisco. Experimental design and process
+optimization. Boca Raton: CRC Press. ISBN 978-0-429-16186-5, December 2014.
+[3] Modak JM, Lim HC, Tayeb YJ. General characteristics of optimal feed rate profiles for
+various fed-batch fermentation processes. Biotechnol Bioeng 1986;28(9):1396–407.
+[4] Maurer Michael, Kühleitner Manfred, Gasser Brigitte, Mattanovich Diethard. Versa-
+tile modeling and optimization of fed batch processes for the production of secreted
+heterologous proteins with pichia pastoris. Microb Cell Fact 2006;5(1):1–10.
+[5] Steinberg David M, Bursztyn Dizza. Response surface methodology in biotechnology.
+Qual Eng March 2010;22(2):78–87. https://doi .org /10 .1080 /08982110903510388.
+Publisher: Taylor & Francis.
+[6] de Oliveira Rafael D, Le Roux Galo AC, Mahadevan Radhakrishnan. Nonlinear pro-
+gramming reformulation of dynamic flux balance analysis models. Comput Chem
+Eng 2023;170:108101.
+[7] Klamt Steﬀen, Mahadevan Radhakrishnan, Hädicke Oliver. When do two-stage pro-
+cesses outperform one-stage processes? Biotechnol J 2018;13(2):1700539.
+[8] Mermoud Grégory. Model-based optimization. In: Mermoud Gregory, editor.
+Stochastic reactive distributed robotic systems: design, modeling and optimiza-
+tion. Springer tracts in advanced robotics. Cham: Springer International Publishing.
+ISBN 978-3-319-02609-1, 2014. p. 175–9.
+[9] Carvalho João CM, Vitolo Michele, Sato Sunao, Aquarone Eugênio. Ethanol produc-
+tion by Saccharomyces cerevisiae grown in sugarcane blackstrap molasses through
+a fed-batch process. Appl Biochem Biotechnol September 2003;110(3):151–64.
+https://doi .org /10 .1385 /ABAB :110 :3 :151.
+[10] Khuri André I, Mukhopadhyay Siuli. Response surface methodology. WIREs: Comput
+Stat 2010;2(2):128–49. https://doi .org /10 .1002 /wics .73.
+[11] Monod Jacques. The growth of bacterial cultures. Annu Rev Microbiol October
+1949;3(1):371–94. Publisher: Annual Reviews.
+[12] Lopes Marta B, Martins Gabriel, Calado Cecília RC. Kinetic modeling of
+plasmid bioproduction in Escherichia coli DH5𝛼 cultures over diﬀerent
+carbon-source compositions. J Biotechnol September 2014;186:38–48. https://
+doi .org /10 .1016 /j .jbiotec .2014 .06 .022. https://www .sciencedirect .com /science /
+article /pii /S0168165614003137.
+[13] Klumpp Stefan, Zhang Zhongge, Hwa Terence. Growth rate-dependent global eﬀects
+on gene expression in bacteria. Cell December 2009;139(7):1366–75. https://doi .
+org /10 .1016 /j .cell .2009 .12 .001. ISSN 0092-8674, 1097-4172. https://www .cell .
+com /cell /abstract /S0092 -8674(09 )01505 -0.
+[14] Kager Julian, Bartlechner Johanna, Herwig Christoph, Jakubek Stefan. Direct control
+of recombinant protein production rates in E. coli fed-batch processes by nonlinear
+feedback linearization. Chem Eng Res Des June 2022;182:290–304. https://doi .org /
+10 .1016 /j .cherd .2022 .03 .043. https://www .sciencedirect .com /science /article /pii /
+S0263876222001460.
+[15] Weber Jan, Hoﬀmann Frank, Rinas Ursula. Metabolic adaptation of Escherichia
+coli during temperature-induced recombinant protein production: 2. Redirection of
+metabolic fluxes. Biotechnol Bioeng 2002;80(3):320–30. https://doi .org /10 .1002 /
+bit .10380.
+[16] Jannasch Holger W, Egli Thomas. Microbial growth kinetics: a historical perspec-
+tive. Antonie Van Leeuwenhoek September 1993;63(3):213–24. https://doi .org /10 .
+1007 /BF00871219.
+[17] Hurvich Cliﬀord M, Tsai Chih-Ling. Regression and time series model selection
+in small samples. Biometrika June 1989;76(2):297–307. https://doi .org /10 .1093 /
+biomet /76 .2 .297.
+[18] Lee Jason D, Sun Dennis L, Sun Yuekai, Taylor Jonathan E. Exact post-selection in-
+ference, with application to the lasso. Ann Stat June 2016;44(3):907–27. https://
+doi .org /10 .1214 /15 -AOS1371. ISSN 0090-5364, 2168-8966, Publisher: Institute
+of Mathematical Statistics. https://projecteuclid .org /journals /annals -of -statistics /
+volume -44 /issue -3 /Exact -post -selection -inference -with -application -to -the -lasso /10 .
+1214 /15 -AOS1371 .full.
+[19] Zhang Yongli, Yang Yuhong. Cross-validation for selecting a model selection
+procedure. J Econom July 2015;187(1):95–112. https://doi .org /10 .1016 /
+j .jeconom .2015 .02 .006. https://www .sciencedirect .com /science /article /pii /
+S0304407615000305.
+[20] Yates Luke A, Aandahl Zach, Richards Shane A, Brook Barry W. Cross valida-
+tion for model selection: a review with examples from ecology. Ecol Monogr
+2023;93(1):e1557. https://doi .org /10 .1002 /ecm .1557.
+[21] Sánchez Benjamín J, Soto Daniela C, Jorquera Héctor, Gelmi Claudio A, Pérez-
+Correa José R. HIPPO: an iterative reparametrization method for identification and
+calibration of dynamic bioreactor models of complex processes. Ind Eng Chem Res
+December 2014;53(48):18514–25. https://doi .org /10 .1021 /ie501298b. Publisher:
+American Chemical Society.

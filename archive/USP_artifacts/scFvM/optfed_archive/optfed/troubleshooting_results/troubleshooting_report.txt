@@ -1,0 +1,136 @@
+================================================================================
+INCREMENTAL MODEL FITTING TROUBLESHOOTING REPORT
+================================================================================
+
+Data path: C:\Users\fgisperg\OneDrive - TU Wien\01_Uni\01_PhD\05_Projects\USP\examples\doe_example\data\traintest_compiled.xlsx
+Test runs: ['ferm_01', 'ferm_02']
+Max iterations: 100
+
+--------------------------------------------------------------------------------
+MODEL: Level_0_Monod
+--------------------------------------------------------------------------------
+Success: True
+Objective value: 39.5961
+Iterations: 1
+
+Fitted parameters:
+  mu_max: 0.5
+  Ks: 0.1
+  Y_XS: 0.5
+
+Validation metrics:
+  Run: ferm_01
+    Biomass RMSE: 8.1892 g/L
+    Biomass R²: 0.6301
+    Biomass MAPE: 16.49 %%
+    Product RMSE: 2.0036 g/L
+    Product R²: -0.8910
+  Run: ferm_02
+    Biomass RMSE: 8.9737 g/L
+    Biomass R²: 0.5940
+    Biomass MAPE: 17.69 %%
+    Product RMSE: 2.6039 g/L
+    Product R²: -1.4505
+
+--------------------------------------------------------------------------------
+MODEL: Level_1_Monod_Product
+--------------------------------------------------------------------------------
+Success: True
+Objective value: 43.883
+Iterations: 1
+
+Fitted parameters:
+  mu_max: 0.5
+  Ks: 0.1
+  Y_XS: 0.5
+  alpha: 0.1
+  beta: 0.01
+  Y_PS: 0.2
+
+Validation metrics:
+  Run: ferm_01
+    Biomass RMSE: 8.7139 g/L
+    Biomass R²: 0.5812
+    Biomass MAPE: 18.00 %%
+    Product RMSE: 0.6173 g/L
+    Product R²: 0.8205
+  Run: ferm_02
+    Biomass RMSE: 9.9434 g/L
+    Biomass R²: 0.5015
+    Biomass MAPE: 19.68 %%
+    Product RMSE: 0.5891 g/L
+    Product R²: 0.8746
+
+--------------------------------------------------------------------------------
+MODEL: Level_2_Inhibition
+--------------------------------------------------------------------------------
+Success: True
+Objective value: 43.8831
+Iterations: 1
+
+Fitted parameters:
+  mu_max: 0.5
+  Ks: 0.1
+  Ki: 100
+  Y_XS: 0.5
+  alpha: 0.1
+  beta: 0.01
+  Y_PS: 0.2
+
+Validation metrics:
+  Run: ferm_01
+    Biomass RMSE: 8.7139 g/L
+    Biomass R²: 0.5812
+    Biomass MAPE: 18.00 %%
+    Product RMSE: 0.6173 g/L
+    Product R²: 0.8205
+  Run: ferm_02
+    Biomass RMSE: 9.9434 g/L
+    Biomass R²: 0.5015
+    Biomass MAPE: 19.68 %%
+    Product RMSE: 0.5891 g/L
+    Product R²: 0.8746
+
+--------------------------------------------------------------------------------
+MODEL: Level_3_Maintenance
+--------------------------------------------------------------------------------
+Success: True
+Objective value: 46.4958
+Iterations: 1
+
+Fitted parameters:
+  mu_max: 0.5
+  Ks: 0.1
+  Ki: 100
+  Y_XS: 0.5
+  alpha: 0.1
+  beta: 0.01
+  Y_PS: 0.2
+  m_s: 0.02
+
+Validation metrics:
+  Run: ferm_01
+    Biomass RMSE: 9.0358 g/L
+    Biomass R²: 0.5497
+    Biomass MAPE: 18.40 %%
+    Product RMSE: 0.4983 g/L
+    Product R²: 0.8830
+  Run: ferm_02
+    Biomass RMSE: 10.1792 g/L
+    Biomass R²: 0.4775
+    Biomass MAPE: 19.67 %%
+    Product RMSE: 0.6876 g/L
+    Product R²: 0.8291
+
+================================================================================
+SUMMARY
+================================================================================
+
+Objective values (lower is better):
+  Level_0_Monod                 : 39.5961
+  Level_1_Monod_Product         : 43.883
+  Level_2_Inhibition            : 43.8831
+  Level_3_Maintenance           : 46.4958
+
+Best fitting model: Level_0_Monod
+Objective value: 39.5961

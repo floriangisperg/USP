@@ -95,6 +95,10 @@ archive/**/outputs/
 # dirs and binary formats stay local via the rules above. Nested archive/
 # and *_archived/ dirs inside it remain ignored.
 !archive/
+# Archive-specific: serialized caches stay local; the one-off provenance
+# notebook is tracked despite the global *.ipynb rule.
+archive/**/*.pkl
+!archive/**/*.ipynb
 **/tmpclaude-*
 .claude/
 

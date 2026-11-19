@@ -1,0 +1,8 @@
+================================================================================
+CORRECTED MODEL FITTING REPORT
+================================================================================
+
+Data path: C:\Users\fgisperg\OneDrive - TU Wien\01_Uni\01_PhD\05_Projects\USP\examples\doe_example\data\traintest_compiled.xlsx
+Test runs: ['ferm_01', 'ferm_02']
+
+Model: Glucose-Limited Fed-Batch

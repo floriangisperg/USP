@@ -32,8 +32,8 @@ data lives in the test suite, not in the examples.
 
 Each example contains only what an example needs (run configs + notes).
 Generated outputs, logs and one-off research analyses that had accumulated
-here were moved to `../../Archive/USP_artifacts/` — except in `hgh/`, whose
-campaign is still current and keeps its outputs.
+here are archived in-repo at `../../archive/USP_artifacts/` — except in
+`hgh/`, whose campaign is still current and keeps its outputs.
 
 ## The examples
 
@@ -65,7 +65,7 @@ Notes per example:
   in-repo at `../../archive/USP_modeling/LDH_M0_campaign/` — see that README.
 - **DOE**: the `induction_time_h` values in the run configs come from an
   operator-vs-SCADA audit (2026-10-23); the audit script and the one-off
-  `data_merger.ipynb` live in `../../Archive/USP_artifacts/doe/`.
+  `data_merger.ipynb` live in `../../archive/USP_artifacts/doe/`.
 
 ## Troubleshooting
 
