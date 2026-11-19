@@ -51,6 +51,11 @@ Issues = "https://github.com/floriangisperg/USP/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Non-Python package data: the DeLisa media composition used via
+# `metadata.media_config_file` (resolved package-relatively in config/loader.py).
+[tool.setuptools.package-data]
+"upstream_analysis.analysis" = ["*.yaml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
