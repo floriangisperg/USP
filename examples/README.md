@@ -39,7 +39,7 @@ campaign is still current and keeps its outputs.
 
 | Directory | What it shows |
 |---|---|
-| `scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times, `all_data/` raw campaign exports) |
+| `scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times; raw exports in each run's `data/`) |
 | `hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high) + consolidated comparison dashboard |
 | `LDH/` | Real LDH production data: Excel online exports, advanced carbon balance, the F19 IB correction note |
 | `Xiso/` | Xylose-isomerase campaign (3 runs) |

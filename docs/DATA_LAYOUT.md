@@ -33,9 +33,10 @@ scripts: `python -m upstream_analysis.pipeline <run_dir>` analyzes one run,
 `python -m upstream_analysis.consolidation <campaign> --prefix <P>` builds
 the consolidated workbooks and dashboard.
 
-Real examples of this layout: `examples/hgh/` (cleanest — two runs),
-`examples/scFvM/` (13 runs + `all_data/` raw campaign exports),
-`examples/LDH/` and `examples/Xiso/`. A single-fermentation analysis is the
+Real examples of this layout: `examples/hgh/` (cleanest — two runs, plus
+`all_data/` with the raw campaign exports), `examples/scFvM/` (13 runs,
+raw exports per run in `data/`), `examples/LDH/` and `examples/Xiso/`. A
+single-fermentation analysis is the
 same minus the campaign level — that is what
 `python scripts/new_run.py <name>` scaffolds under `runs/`.
 

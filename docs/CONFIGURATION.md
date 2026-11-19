@@ -100,6 +100,16 @@ cleaning:
 - Uses a threshold to identify when the balance was zeroed
 - Critical for accurate feed volume calculations
 
+**Median Filter Note:**
+- `median_filter_columns` entries must match the **internal standard names**
+  after column mapping (e.g. `Balance [g]`), not the raw export headers.
+- The shipped default `['balance']` matches no internal column, so the
+  default filter is a **no-op** — it only warns once per run ("Column
+  'balance' specified for median filter not found"). Set
+  `median_filter_columns: ['Balance [g]']` to enable actual spike
+  filtering; that changes cleaning behavior and downstream results (all
+  analyses in `examples/` ran without it).
+
 ### 4. Alignment (`alignment`)
 
 Settings for merging online and offline datasets by time.

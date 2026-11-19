@@ -99,7 +99,7 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 
 | Directory | What it shows |
 |---|---|
-| `examples/scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times, `all_data/` raw campaign exports) |
+| `examples/scFvM/` | 13 scFv DoE fermentation runs (config per run incl. operator-verified induction times; raw exports in each run's `data/`) |
 | `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high) with a consolidated comparison dashboard |
 | `examples/LDH/` / `examples/Xiso/` | Per-product campaigns: run configs + consolidation outputs |
 
@@ -165,7 +165,7 @@ git tracks) is specified in
 ## Testing
 
 ```bash
-pytest                  # run the full suite (136 tests)
+pytest                  # run the full suite (150 tests)
 pytest --cov=upstream_analysis
 ```
 

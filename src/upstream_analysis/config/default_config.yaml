@@ -72,6 +72,12 @@ cleaning:
   balance_tare_correction: true
   calculate_process_time: true
   median_filter: true
+  # NOTE: names here must match the INTERNAL standard names (after column
+  # mapping), e.g. 'Balance [g]'. The shipped default 'balance' matches no
+  # internal column, so the default median filter is a no-op (it warns once
+  # per run: "Column 'balance' specified for median filter not found").
+  # Setting 'Balance [g]' enables actual spike filtering — a behavior change
+  # that alters downstream results (all published analyses ran without it).
   median_filter_columns: ['balance']
   median_filter_window: 10
   median_filter_threshold: 10

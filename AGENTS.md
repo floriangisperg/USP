@@ -24,6 +24,7 @@ code here. Python ≥ 3.12.
 | [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md)             | Step-by-step: raw bioreactor export → results (column mapping, parsing, minimal config, sanity checks) |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)             | Every configuration option                                                                             |
 | [`docs/VERIFICATION_STATUS.md`](docs/VERIFICATION_STATUS.md) | How to verify the package (tests, lint, CI)                                                            |
+| [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md)              | Short factual record of structural work on the package                                                 |
 
 ## Common Development Commands
 
@@ -37,14 +38,14 @@ uv sync --extra dev --extra dashboard   # full env: dev tools + bokeh
 ```
 
 Two extras exist: `dev` (pytest, black, isort, flake8, pandas-stubs) and
-`dashboard` (bokeh). The full 136-test suite and the consolidation
+`dashboard` (bokeh). The full 150-test suite and the consolidation
 dashboards need **both** — without `dashboard`, the 11 dashboard tests
 skip. Plain pip fallback: `pip install -e ".[dev]" ".[dashboard]"`.
 
 ### Verifying Your Setup
 
 ```bash
-pytest   # 149 tests incl. end-to-end pipeline/consolidation checks, ~1 min
+pytest   # 150 tests incl. end-to-end pipeline/consolidation checks, ~1 min
 ```
 
 ### Running Examples
@@ -68,15 +69,10 @@ overview plots to a run-specific `results/` directory. The other examples
 (LDH, Xiso) follow the same pattern; their raw data is gitignored and lives
 only where the analyses were run.
 
-Every analysis writes `processed_data.csv`, `samples_points_data.csv` and
-overview plots to a run-specific `results/` directory. The other examples
-(LDH, Xiso) follow the same pattern; their raw data is gitignored and lives
-only where the analyses were run.
-
 ### Testing
 
 ```bash
-pytest                        # full suite (136 tests; 125 without bokeh)
+pytest                        # full suite (150 tests; 139 without bokeh)
 pytest tests/unit             # per-module unit tests only
 pytest --cov=upstream_analysis
 ```
@@ -99,6 +95,16 @@ exempted from pedantic flake8 codes via `.flake8` per-file-ignores — they
 are research scripts, not package code. Configuration: `[tool.black]`,
 `[tool.isort]`, `[tool.pytest.ini_options]` in `pyproject.toml`; flake8 in
 `.flake8` (max line length 100 to tolerate legacy docstring prose).
+
+### Helper scripts (`scripts/`)
+
+- `scripts/new_run.py <name>` — scaffold a run folder (`runs/<name>/`) with
+  an annotated `run_config.yaml`, empty `data/` + `results/` and a
+  checklist; this is the onboarding path in
+  [`docs/YOUR_OWN_DATA.md`](docs/YOUR_OWN_DATA.md).
+- `scripts/run_all_tests.py` / `scripts/check_code_quality.py` — thin
+  wrappers around `pytest` and black/isort/flake8; prefer the direct
+  commands above.
 
 ## Architecture Overview
 
