@@ -39,10 +39,6 @@ dev = [
     "flake8>=3.9.2",
     "pandas-stubs>=2.3",
 ]
-modeling = [
-    "cma",        # CMA-ES optimizer for parameter fitting
-    "catalax",    # mechanistic modeling (used in modeling_playground)
-]
 dashboard = [
     "bokeh>=3.8", # interactive HTML dashboards (InteractiveDashboard)
 ]

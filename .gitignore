@@ -61,6 +61,14 @@ examples/**/data/                 # raw experiment data dirs (also covered below
 *.pdf
 *.ipynb
 *.html
+# Lab instrument / analysis software formats (SDS-PAGE scans, MODDE, flow
+# cytometry, Origin projects, FelxStart) — raw data stays out of the repo
+*.scn
+*.mip
+*.fcs
+*.opju
+*.fey
+*.cmbx
 
 # Consolidated / compiled data exports
 **/*consolidated*.xlsx
@@ -74,7 +82,6 @@ examples/**/data/                 # raw experiment data dirs (also covered below
 # =============================================================================
 # Scratch / experimental work (not part of the package)
 # =============================================================================
-modeling_playground/
 **/archive/
 **/*_archived/
 **/tmpclaude-*

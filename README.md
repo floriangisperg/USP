@@ -40,9 +40,6 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-The `modeling` extra (`pip install -e ".[modeling]"`) adds `cma` and `catalax`,
-used only by the parameter-fitting / modeling playground.
-
 ## Quickstart
 
 The fastest way to see the full pipeline is the real-data example:
@@ -105,8 +102,11 @@ processed.to_csv(output_dir / "processed_data.csv", index=False, sep=";", decima
 | `examples/doe_example/` | 12 scFv DoE fermentation runs; `python analyze_doe_run.py ferm_01` analyzes one run. Consolidated raw exports live in `all_data/` |
 | `examples/hgh/` | Two hGH fed-batch runs (R5 low/low, R6 high/high): analyze each run, then `consolidate_results.py` builds combined workbooks + a bokeh comparison dashboard |
 | `examples/LDH/` / `examples/Xiso/` | Per-product analyses: run scripts plus `consolidate_results.py` each |
-| `modeling/` | **Tracked** home of mature modeling analyses (mechanistic IB model, LDH fit lineage v5→v6, IB solubility study with report) — promoted out of the playground; figures local-only. See [`modeling/README.md`](modeling/README.md) |
-| `modeling_playground/` | Active parameter-fitting sandbox (cma + catalax; `modeling` extra) — scratch work, **not tracked in git** |
+
+USP is intentionally scoped to **data analysis**. The modeling work that
+grew out of this data (mechanistic IB model, LDH fits, the M0 model campaign)
+lives outside the repo — see `../Archive/USP_modeling/README.md` and the
+`HybridModel` project.
 
 Experiment data (`examples/**/data/`, `results/`, `all_data/`) is gitignored
 and lives outside the repo; `real_data_example` intentionally ships its data
@@ -177,10 +177,9 @@ isort src/ tests/
 flake8 src/ tests/         # CI gate on the package
 ```
 
-Analysis scripts under `examples/` and `modeling/` are format-checked with
-black/isort but exempted from pedantic flake8 rules (see `.flake8`
-per-file-ignores); `flake8 src/ tests/ examples/ modeling/` runs everything
-locally.
+Analysis scripts under `examples/` are format-checked with black/isort but
+exempted from pedantic flake8 rules (see `.flake8` per-file-ignores);
+`flake8 src/ tests/ examples/` runs everything locally.
 
 Tool configuration lives in `pyproject.toml` (`[tool.black]`, `[tool.isort]`,
 `[tool.pytest.ini_options]`) and `.flake8`.

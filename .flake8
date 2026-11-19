@@ -13,10 +13,8 @@ exclude =
     dist,
     .eggs,
     *.egg-info,
-    modeling_playground,
     archive
 per-file-ignores =
-    # examples/ and modeling/ are one-off analysis scripts: format-checked
-    # (black/isort), exempted from pedantic checks; F821 undefined names still fail.
+    # examples/ are one-off analysis scripts: format-checked (black/isort),
+    # exempted from pedantic checks; F821 undefined names still fail.
     examples/*.py: E501,F401,F541,E402,F841,E712,E126,E127,E128,E261,E301,E302,E305
-    modeling/*.py: E501,F401,F541,E402,F841,E712,E126,E127,E128,E261,E301,E302,E305

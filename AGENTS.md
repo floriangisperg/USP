@@ -27,7 +27,6 @@ Plain pip fallback:
 
 ```bash
 pip install -e ".[dev]"       # runtime + dev deps
-pip install -e ".[modeling]"  # adds cma + catalax (parameter fitting only)
 pip install -e ".[dashboard]" # adds bokeh (interactive HTML dashboards)
 ```
 
@@ -79,9 +78,9 @@ isort src/ tests/
 flake8 src/ tests/
 ```
 
-Analysis scripts under `examples/` and `modeling/` are format-checked
-(black/isort) but exempted from pedantic flake8 codes via `.flake8`
-per-file-ignores — they are research scripts, not package code.
+Analysis scripts under `examples/` are format-checked (black/isort) but
+exempted from pedantic flake8 codes via `.flake8` per-file-ignores — they
+are research scripts, not package code.
 
 Configuration: `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]` in
 `pyproject.toml`; flake8 in `.flake8` (max line length 100 to tolerate legacy
