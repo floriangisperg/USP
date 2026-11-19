@@ -8,7 +8,8 @@ single ``.html`` file (no server, opens offline in any browser) with:
 - one small multiple per parameter, plus a curated **Functional** tab of
   relationship plots (pO2 vs O2 enrichment, pO2 vs OUR, growth, mu, carbon
   closure, product vs biomass),
-- multiple runs overlaid, with a **per-tab run selector** (checkboxes) that
+- multiple runs overlaid, with a **global run selector** (checkboxes above
+  the tabs) that
   filters every plot in the tab at once (and per-plot legend toggling), and
 - hover tooltips (run / time / value), plus pan/zoom/reset.
 
@@ -252,6 +253,7 @@ class InteractiveDashboard:
         run_names = list(runs.keys())
 
         tabs = []
+        all_renders: list = []
         for cat_name, cols in categories.items():
             figs_with_renders = []
             for col in cols:
@@ -261,13 +263,17 @@ class InteractiveDashboard:
                 if result is not None:
                     figs_with_renders.append(result)
             if figs_with_renders:
-                tabs.append(self._make_tab(cat_name, figs_with_renders, run_names))
+                tab, renders = self._make_tab(cat_name, figs_with_renders)
+                tabs.append(tab)
+                all_renders.extend(renders)
 
         # Curated relationship plots (only when using the default categories).
         if use_default_categories:
             func_figs = self._functional_figures(runs, max_points)
             if func_figs:
-                tabs.append(self._make_tab("Functional", func_figs, run_names))
+                tab, renders = self._make_tab("Functional", func_figs)
+                tabs.append(tab)
+                all_renders.extend(renders)
 
         if not tabs:
             logger.warning("No plottable parameters found; dashboard not written.")
@@ -278,27 +284,18 @@ class InteractiveDashboard:
             text=(
                 f"<h2>{title}</h2>"
                 f"<p>Runs: {', '.join(run_names)} &nbsp;|&nbsp; x-axis: {self.time_col} "
-                "&nbsp;|&nbsp; use the per-tab checkboxes to filter runs; click a legend "
+                "&nbsp;|&nbsp; the checkboxes below filter runs on every tab at once "
+                "(the selection is remembered when you switch tabs); click a legend "
                 "entry to toggle a single trace; hover for values.</p>"
             )
         )
-        layout = column(header, Tabs(tabs=tabs), sizing_mode="scale_width")
+        layout_children: list = [header]
 
-        out = self.output_dir / output_filename
-        output_file(out, title=title, mode="inline")
-        save(layout)
-        logger.info(f"Saved interactive dashboard: {out}")
-        return out
-
-    def _make_tab(self, title: str, figs_with_renders: list, run_names: list):
-        """Wrap a grid of figures in a tab; add a run selector when >1 run."""
-        figs = [f for f, _ in figs_with_renders]
-        renders = [(r, ri) for _, rs in figs_with_renders for (r, ri) in rs]
-        body = gridplot(figs, ncols=2)
-
-        if len(run_names) > 1 and renders:
-            flat = [r for r, _ in renders]
-            idx = [ri for _, ri in renders]
+        # Global run selector — one widget above all tabs so the selection
+        # persists across tab switches.
+        if len(run_names) > 1 and all_renders:
+            flat = [r for r, _ in all_renders]
+            idx = [ri for _, ri in all_renders]
             cbg = CheckboxGroup(labels=run_names, active=list(range(len(run_names))))
             code = (
                 "const a = cbg.active;\n"
@@ -308,21 +305,35 @@ class InteractiveDashboard:
             cbg.js_on_change(
                 "active", CustomJS(args={"rs": flat, "cbg": cbg}, code=code)
             )
-            all_idx = list(range(len(run_names)))
             btn_all = Button(label="Check all", width=90)
             btn_all.js_on_click(
                 CustomJS(
-                    args={"cbg": cbg, "all_idx": all_idx}, code="cbg.active = all_idx;"
+                    args={"cbg": cbg, "all_idx": list(range(len(run_names)))},
+                    code="cbg.active = all_idx;",
                 )
             )
             btn_none = Button(label="Uncheck all", width=90)
             btn_none.js_on_click(CustomJS(args={"cbg": cbg}, code="cbg.active = [];"))
-            hint = Div(
-                text="<b>Show runs:</b> (uncheck to hide a run across this whole tab)"
-            )
-            body = column(hint, row(btn_all, btn_none), cbg, body)
+            layout_children.append(row(btn_all, btn_none, cbg))
 
-        return TabPanel(title=title, child=body)
+        layout_children.append(Tabs(tabs=tabs))
+        layout = column(*layout_children, sizing_mode="scale_width")
+
+        out = self.output_dir / output_filename
+        output_file(out, title=title, mode="inline")
+        save(layout)
+        logger.info(f"Saved interactive dashboard: {out}")
+        return out
+
+    def _make_tab(self, title: str, figs_with_renders: list):
+        """Wrap a grid of figures in a tab; returns (tab, renderers).
+
+        Run filtering is global (one selector above all tabs, see `_build`),
+        so the tab itself carries no selector.
+        """
+        figs = [f for f, _ in figs_with_renders]
+        renders = [(r, ri) for _, rs in figs_with_renders for (r, ri) in rs]
+        return TabPanel(title=title, child=gridplot(figs, ncols=2)), renders
 
     # --- figure builders -------------------------------------------------------
 
