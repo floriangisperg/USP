@@ -1,11 +1,15 @@
 """Pytest fixtures for USP testing."""
 
+import os
 import sys
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import pytest
+# Headless-safe plotting for all tests (no Tk/window backends).
+os.environ.setdefault("MPLBACKEND", "Agg")
+
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))

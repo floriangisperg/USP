@@ -237,3 +237,34 @@ def get_nested_config(
                 msg = f"{context}: {msg}"
             raise USPConfigError(msg)
     return value
+
+
+def coerce_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert object-dtype columns whose every non-null value parses as a number.
+
+    Alignment can leave offline-derived columns as object dtype holding string
+    floats (this is why protein calculations call ``infer_objects`` before
+    arithmetic). Downstream consumers — CSV export, consolidation — need real
+    numeric dtypes. Columns that contain genuinely non-numeric values (phase
+    names, timestamps) are left untouched. Comma decimals are accepted.
+
+    Args:
+        df: DataFrame to coerce (not modified in place).
+
+    Returns:
+        DataFrame with numeric-convertible object columns converted.
+    """
+    df_out = df.copy()
+    for col in df_out.columns:
+        series = df_out[col]
+        if series.dtype != object:
+            continue
+        converted = pd.to_numeric(
+            series.astype(str).str.strip().str.replace(",", ".", regex=False),
+            errors="coerce",
+        )
+        # Convert only when every non-null value became numeric (NaN maps to
+        # NaN in ``converted``, so the masks align).
+        if (converted.notna() == series.notna()).all() and converted.notna().any():
+            df_out[col] = converted
+    return df_out
